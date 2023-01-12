@@ -1,0 +1,19 @@
+{
+    "name": "X-links Extension - Mangadex",
+    "version": "1.0",
+    "author": "mycropen",
+    "description": "Linkify and format Mangadex links",
+    "namespace": "mycropen",
+    "urls": {
+        "homepage": "https://dnsev-h.github.io/x-links/",
+        "support": "https://github.com/mycropen/x-links/issues",
+        "update_base": "https://raw.githubusercontent.com/mycropen/x-links/stable/",
+        "changelog": "https://raw.githubusercontent.com/mycropen/x-links/stable/src/extensions/mangadex_changelog"
+    },
+    "inputs": [ "./mangadex.js" ],
+    "output": "../../builds/x-links-ext-mangadex.user.js",
+    "icon48": "../../resources/images/extensions/icon48.png",
+    "icon64": "../../resources/images/extensions/icon64.png",
+    "targets": "@:../main.json#targets",
+    "gm_permissions": []
+}

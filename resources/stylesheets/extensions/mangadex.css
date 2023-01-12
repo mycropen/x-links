@@ -1,0 +1,11 @@
+/*.xl-site-tag-icon[data-xl-site-tag-icon=lang_jp] {
+    background-image: url('#{data:../../images/extensions/mangadex/jp.png}#');
+}
+
+.xl-site-tag-icon[data-xl-site-tag-icon=lang_cn] {
+    background-image: url('#{data:../../images/extensions/mangadex/cn.png}#');
+}
+
+.xl-site-tag-icon[data-xl-site-tag-icon=lang_kr] {
+    background-image: url('#{data:../../images/extensions/mangadex/kr.png}#');
+}*/
