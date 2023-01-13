@@ -1853,7 +1853,7 @@
                             ["use_flags", true, "Use country flags", "Show country flags instead of language tags in place of the [MD] tag or icon."],
                             ["show_volume", true, "Show volume number", ""],
                             ["show_ch_title", true, "Show chapter title", ""],
-                            ["show_pages", true, "Show page number", ""],
+                            ["show_pages", true, "Show page count", ""],
                             ["show_group", false, "Show group name", ""],
                             ["custom_title", false, "Non-default series title language", "With the default title as fallback"],
                             ["title_search_order", "en, orig-ro, orig", "Series title search order",
@@ -1863,7 +1863,7 @@
                         ],
                         dynasty: [
                             ["show_icon", true, "Show an icon instead of a [DS] tag", ""],
-                            ["show_pages", true, "Show page number", ""],
+                            ["show_pages", true, "Show page count", ""],
                             ["show_group", false, "Show group name", ""],
                         ]
                     },
