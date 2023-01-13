@@ -1,5 +1,9 @@
 master
 
+1.2
+- mycropen
+  + Added support for dynasty-scans.com chapter links and more options for Mangadex links
+
 1.1
 - mycropen
   + Added option to show country flags instead of [MD]

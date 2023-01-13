@@ -22,3 +22,11 @@
 .xl-site-tag-icon[data-xl-site-tag-icon=lang_th] {
     background-image: url('#{data:../../images/extensions/mangadex/th.png}#');
 }
+
+.xl-site-tag-icon[data-xl-site-tag-icon=site_DS] {
+    background-image: url('#{data:../../images/extensions/mangadex/DS.png}#');
+}
+
+.xl-site-tag-icon[data-xl-site-tag-icon=site_MD] {
+    background-image: url('#{data:../../images/extensions/mangadex/MD.png}#');
+}

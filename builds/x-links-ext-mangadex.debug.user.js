@@ -2,8 +2,8 @@
 // @name        X-links Extension - Mangadex (debug)
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.1.-0xDB
-// @description Linkify and format Mangadex links
+// @version     1.2.-0xDB
+// @description Linkify and format Mangadex & Dynasty-Scans links
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
 // @include     http://boards.4channel.org/*
@@ -1511,18 +1511,31 @@
             if (data.manga.originalLanguage)
                 data.final.manga_lang = "["+data.manga.originalLanguage+"]";
 
-            if (data.manga.title.en !== undefined)
-                data.final.manga = data.manga.title.en;
-            else if (data.manga.title.ja !== undefined)
-                data.final.manga = data.manga.title.ja;
-            else if (data.manga.altTitles !== undefined) {
-                if (data.manga.altTitles.ja !== undefined)
-                    data.final.manga = data.manga.title.ja;
-                else if (data.manga.altTitles["ja-ro"] !== undefined)
-                    data.final.manga = data.manga.title["ja-ro"];
+            if (xlinks_api.config.mangadex.custom_title) {
+                var title_order = xlinks_api.config.mangadex.title_search_order.replace(/\s+/g, "").split(",");
+                var title_found = false;
+                for (var i = 0; i < title_order.length; i++) {
+                    if (title_found) break;
+                    lcode = title_order[i];
+                    lcode = lcode.replace(/orig/i, data.manga.originalLanguage);
+                    if (data.manga.title[lcode] !== undefined) {
+                        data.final.manga = data.manga.title[lcode];
+                        break;
+                    }
+                    else {
+                        // altTitles is an array of objects with each single entries
+                        for (var j = 0; j < data.manga.altTitles.length; j++) {
+                            if (data.manga.altTitles[j][lcode] !== undefined) {
+                                data.final.manga = data.manga.altTitles[j][lcode];
+                                title_found = true;
+                                break;
+                            }
+                        }
+                    }
+                }
             }
             if (!data.final.manga) {
-                // take the first title you find
+                // take the default title
                 let keys = Object.keys(data.manga.title);
                 if (keys.length)
                     data.final.manga = data.manga.title[keys[0]];
@@ -1564,7 +1577,9 @@
             }
         }._w(80)
 
+
         // functions that interact with the API
+        // Mangadex
         var md_get_data = function (info, callback) {
             var data = xlinks_api.cache_get(info.id);
             callback(null, data);
@@ -1683,10 +1698,12 @@
             if (jsdata.data.attributes.status) data.status = jsdata.data.attributes.status;
             if (jsdata.data.attributes.tags) data.tags = jsdata.data.attributes.tags;
 
-            if (data.originalLanguage == "ja") data.originalLanguage = "jp";
-
-            if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[data.originalLanguage] !== undefined && xhr.context !== undefined)
-                replace_icon(xhr.context, lang_to_flag[data.originalLanguage]);
+            if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && xhr.context !== undefined)
+                if (lang_to_flag[data.originalLanguage] !== undefined)
+                    replace_icon(xhr.context, lang_to_flag[data.originalLanguage]);
+                else
+                    // flag not implemented
+                    replace_icon(xhr.context, 'site_MD');
 
             xlinks_api.cache_set("manga_" + jsdata.data.id, data, 7 * xlinks_api.ttl_1_day);
             if (xhr.context !== undefined) {
@@ -1733,12 +1750,13 @@
             callback(null, [data]);
         }._w(88);
         
-        var ch_url_get_info = function (url, callback) {
+        var md_ch_url_get_info = function (url, callback) {
             var m = /(https?:\/*)?(?:www\.)?mangadex\.org\/chapter\/([a-z0-9\-]+)/i.exec(url),
                 url_info;
             if (m !== null && m[2] !== undefined) {
                 url_info = {
                     id: m[2],
+                    site: "mangadex",
                     type: "chapter",
                     tag: "MD",
                     context: m[2],
@@ -1747,6 +1765,8 @@
                 // hack a way to use the site icon as a language flag
                 if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags)
                     url_info.icon = "replaceme-"+url_info.id;
+                else if (xlinks_api.config.mangadex.show_icon)
+                    url_info.icon = "site_MD";
 
                 callback(null, url_info);
             }
@@ -1754,120 +1774,286 @@
                 callback(null, null);
             }
         }._w(89);
-        var ch_url_info_to_data = function (url_info, callback) {
+        var md_ch_url_info_to_data = function (url_info, callback) {
             // make chapter api call with its id as context
             // the parse_response functions will then add their data to the aggregator
             var aggregator = new DataAggregator(callback);
             aggregator.context = url_info.context;
             aggregators[url_info.context] = aggregator;
-            xlinks_api.request("mangadex", "chapter", url_info.id, url_info, (err, data) => {
-                if (err == null) {
-                    aggregator.add_data("chapter", data);
 
-                    var has_manga = false;
-                    var has_groups = 0;
-                    var group_num = 0;
+            var chdata = xlinks_api.cache_get(url_info.id, null);
+            if (chdata !== null) {
+                aggregator.add_data("chapter", chdata);
+                get_manga_group_data(url_info, chdata, aggregator);
+            }
+            else {
+                xlinks_api.request("mangadex", "chapter", url_info.id, url_info, (err, data) => {
+                    if (err == null) {
+                        md_set_data(data, url_info, (err) => {});
+                        aggregator.add_data("chapter", data);
+                        get_manga_group_data(url_info, data, aggregator);
+                    }
+                });
+            }
+        }._w(90);
+        var get_manga_group_data = function (url_info, data, aggregator) {
+            var has_manga = false;
+            var has_groups = 0;
+            var group_num = 0;
 
-                    if (data.relationships !== undefined) {
-                        for (var i = 0; i < data.relationships.length; i++) {
-                            if (data.relationships[i].type == "scanlation_group") {
-                                group_num++;
-                            }
+            if (data.relationships !== undefined) {
+                for (var i = 0; i < data.relationships.length; i++) {
+                    if (data.relationships[i].type == "scanlation_group") {
+                        group_num++;
+                    }
+                }
+                aggregator.group_num = group_num;
+
+                for (var i = 0; i < data.relationships.length; i++) {
+                    if (data.relationships[i].type == "scanlation_group") {
+                        has_groups++;
+
+                        group_url_info = {
+                            id: data.relationships[i].id,
+                            context: data.id,
+                            type: "group",
                         }
-                        aggregator.group_num = group_num;
-
-                        for (var i = 0; i < data.relationships.length; i++) {
-                            if (data.relationships[i].type == "scanlation_group") {
-                                has_groups++;
-
-                                group_url_info = {
-                                    id: data.relationships[i].id,
-                                    context: data.id,
-                                    type: "group",
-                                }
-                                var groupdata = xlinks_api.cache_get("group_" + group_url_info.id);
-    
-                                if (groupdata !== null) {
-                                    aggregator.add_data("group", groupdata);
-                                }
-                                else {
-                                    // no cached group data
-                                    xlinks_api.request("mangadex", "group", group_url_info.id, group_url_info, (err, data) => {});
-                                }
-                            }
-                            else if (data.relationships[i].type == "manga") {
-                                has_manga = true;
-                                manga_url_info = {
-                                    id: data.relationships[i].id,
-                                    context: data.id,
-                                    type: "manga",
-                                }
-                                var mangadata = xlinks_api.cache_get("manga_" + manga_url_info.id);
-    
-                                if (mangadata !== null) {
-                                    if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[mangadata.originalLanguage] !== undefined)
-                                        replace_icon(data.id, lang_to_flag[mangadata.originalLanguage]);
-                                    aggregator.add_data("manga", mangadata);
-                                }
-                                else {
-                                    // no cached manga data
-                                    xlinks_api.request("mangadex", "manga", manga_url_info.id, manga_url_info, (err, data) => {});
-                                }
-                            }
+                        var groupdata = xlinks_api.cache_get("group_" + group_url_info.id);
+            
+                        if (groupdata !== null) {
+                            aggregator.add_data("group", groupdata);
                         }
-
-                        if (!has_manga) {
-                            mangadata = {
-                                title: null,
-                                altTitles: null,
-                                descrition: null,
-                                originalLanguage: null,
-                                state: null,
-                                status: null,
-                                tags: null,
-                            };
+                        else {
+                            // no cached group data
+                            xlinks_api.request("mangadex", "group", group_url_info.id, group_url_info, (err, data) => {});
+                        }
+                    }
+                    else if (data.relationships[i].type == "manga") {
+                        has_manga = true;
+                        manga_url_info = {
+                            id: data.relationships[i].id,
+                            context: data.id,
+                            type: "manga",
+                        }
+                        var mangadata = xlinks_api.cache_get("manga_" + manga_url_info.id);
+            
+                        if (mangadata !== null) {
+                            if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[mangadata.originalLanguage] !== undefined)
+                                replace_icon(data.id, lang_to_flag[mangadata.originalLanguage]);
                             aggregator.add_data("manga", mangadata);
                         }
-
-                        if (has_groups == 0) {
-                            groupdata = {
-                                name: null,
-                            };
-                            aggregator.add_data("group", groupdata);
+                        else {
+                            // no cached manga data
+                            xlinks_api.request("mangadex", "manga", manga_url_info.id, manga_url_info, (err, data) => {});
                         }
                     }
                 }
+
+                if (!has_manga) {
+                    mangadata = {
+                        title: null,
+                        altTitles: null,
+                        descrition: null,
+                        originalLanguage: null,
+                        state: null,
+                        status: null,
+                        tags: null,
+                    };
+                    aggregator.add_data("manga", mangadata);
+                }
+
+                if (has_groups == 0) {
+                    groupdata = {
+                        name: null,
+                    };
+                    aggregator.add_data("group", groupdata);
+                }
+            }
+        }._w(91)
+
+        // Dynasty-Scans
+        var ds_get_data = function (info, callback) {
+            var data = xlinks_api.cache_get(info.id);
+            callback(null, data);
+        }._w(92);
+        var ds_set_data = function (data, info, callback) {
+            var lifetime = 7 * xlinks_api.ttl_1_day;
+            if (info.lifetime !== undefined) lifetime = info.lifetime;
+            xlinks_api.cache_set(info.id, data, lifetime);
+            callback(null);
+        }._w(93);
+
+        var ds_chapter_setup_xhr = function (callback) {
+            var info = this.infos[0];
+            callback(null, {
+                method: "GET",
+                url: "https://dynasty-scans.com/chapters/" + info.id,
             });
-        }._w(90);
+        }._w(94);
+        var ds_chapter_parse_response = function (xhr, callback) {
+            if (xhr.status !== 200) {
+                callback("Invalid response.");
+                return;
+            }
+
+            var html = xlinks_api.parse_html(xhr.responseText, null),
+                info = this.infos[0],
+                data, nn, n2;
+
+            if (html === null) {
+                callback("Invalid response");
+                return;
+            }
+
+            data = {
+                base_title: null,
+                title: null,
+                authors: [],
+                groups: [],
+                volumes: [],
+                pages: null,
+                releasedAt: null,
+                tags: [],
+            };
+
+            // title
+            if ((nn = $("#chapter-title > b", html)) !== null)
+                data.base_title = nn.textContent.trim();
+            else {
+                callback(null, [{error: "Invalid chapter"}]);
+                return;
+            }
+
+            // authors
+            if ((nn = $$("#chapter-title > a", html)).length > 0) {
+                for (var i = 0; i < nn.length; i++) {
+                    data.authors.push(nn[i].textContent.trim());
+                }
+            }
+
+            // pages
+            data.pages = $$("a.page", html).length;
+
+            // volumes
+            if ((nn = $$("span.volumes > a", html)).length > 0) {
+                for (var i = 0; i < nn.length; i++) {
+                    data.volumes.push(nn[i].textContent.trim());
+                }
+            }
+
+            // groups
+            if ((nn = $$("span.scanlators > a", html)).length > 0) {
+                for (var i = 0; i < nn.length; i++) {
+                    if (nn[i].textContent.trim().length > 0)
+                        data.groups.push(nn[i].textContent.trim());
+                    else if ((n2 = $("img", nn[i])) !== null)
+                        // check the a > img.alt attribute, e.g. for /u/ scanlations
+                        data.groups.push(n2.getAttribute("alt"));
+                }
+            }
+
+            // releasedAt
+            if ((nn = $("span.released", html)) !== null) {
+                data.releasedAt = nn.textContent.trim();
+                data.releasedAt = data.releasedAt.replace(/\s+/g, " ");
+            }
+
+            // tags
+            if ((nn = $$("span.tags > a.label", html)).length > 0) {
+                for (var i = 0; i < nn.length; i++) {
+                    data.tags.push(nn[i].textContent.trim());
+                }
+            }
+
+            ds_set_data(data, info, (err) => {
+                if (err !== null)
+                    console.log("Error caching Dynasty data.");
+            })
+            data.title = ds_make_title(data);
+
+            callback(null, [data]);
+        }._w(95);
+
+        var ds_ch_url_get_info = function (url, callback) {
+            var m = /(https?:\/*)?(?:www\.)?dynasty-scans\.com\/chapters\/([^#]+)/i.exec(url),
+                url_info;
+            if (m !== null && m[2] !== undefined) {
+                url_info = {
+                    id: m[2],
+                    site: "dynasty",
+                    type: "chapter",
+                    tag: "DS",
+                };
+
+                if (xlinks_api.config.dynasty.show_icon)
+                    url_info.icon = "site_DS";
+
+                callback(null, url_info);
+            }
+            else {
+                callback(null, null);
+            }
+        }._w(96);
+        var ds_ch_url_info_to_data = function (url_info, callback) {
+            var dsdata = xlinks_api.cache_get(url_info.id, null);
+            if (dsdata !== null) {
+                dsdata.title = ds_make_title(dsdata);
+                callback(null, dsdata);
+            }
+            else
+                xlinks_api.request("dynasty", "chapter", url_info.id, url_info, callback);
+        }._w(97);
+
+        var ds_make_title = function (data) {
+            var title = data.base_title;
+            if (xlinks_api.config.dynasty.show_pages)
+                title += " (" + String(data.pages) + "p)";
+            if (xlinks_api.config.dynasty.show_group && data.groups.length > 0) {
+                title += " [" + data.groups.join(', ') + "]";
+            }
+            title = title.replace(/\s+/g, " ");
+            return title;
+        }._w(98)
 
         xlinks_api.init({
             namespace: "mangadex",
-            name: "Mangadex links",
+            name: "Mangadex & Dynasty links",
             author: "mycropen",
-            description: "Linkify and format Mangadex links",
-            version: ["1#version1#version-0xDB"],
+            description: "Linkify and format Mangadex & Dynasty-Scans links",
+            version: [1,2,-0xDB],
             registrations: 1,
             main: main_fn
         }, function (err) {
             if (err === null) {
-                xlinks_api.insert_styles(".xl-site-tag-icon[data-xl-site-tag-icon=lang_jp]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAUVBMVEX////89ffstsPjlaj77/LacYq+CTS8AC2/CjXacov78PP22+HGJUvGJkz23OLac4z99vjst8Tjlqnkl6nkmKrsuMW/CzbbdY3GJ0323ePadI1SYYEeAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkH80BkfYAAAB6SURBVCjPzZHJDoAgDEQRVBCVVXD5/w+VGIMQSrj6rvOaTlqE/kaHCcFdNe6HkQbYxOF8XujLKsD5mAejB4SBJkigH0sFpgpB0wxdCCYXbCHYXNhaK1yjpC9LIpkKO3AHvn75AR5bROM4K8+STw9/VZ4VUM4Yp9DfuAEcEgb8vRe9xgAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMy0wMS0xMlQwMTozMToyMiswMDowMJwMZyQAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjMtMDEtMTBUMDM6NTA6NTkrMDA6MDAFGLMuAAAAAElFTkSuQmCC)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_cn]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAclBMVEXuHCXxQB/xRx7vKSP4oBD4pA/uHyX0cRf0cBfwOCDuIiTuICTuHSXvJCTvKyP6vQvxSh381wfvKCPvLyL6tgz//wDwMiH1fhX4mxD6uwv6wgryUB3vIyT1dxbyURz+7wPvJyP2iRP4oQ/zXRrzWRv///96F0p+AAAAAWJLR0QlwwHJDwAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkN/i0OQwAAABvSURBVCjPY2AgATAy4ZRiZgaRLKxsuBSwc4ApTi5uHiyyvHx8/Px8fLxApoCgEBYFwiKiQMAvBmRyiQtjtUFCVFQCr/MlpaQkISxprPIysjw8sjIglpy8GF6TFPiEufHJKyqx4dXPoKzCMAoGMwAAo/cEXRjamKYAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_kr]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABoVBMVEX///+7u7vCwsLBwcG9vb3u7u4cHBySkpJ5eXl2dnYdHR3w8PBeXl5paWkwMDCHh4c3Nzf4+Pj29vaFhYU0NDRmZmaOjo6zs7MiIiJzc3NLS0tRUVF+fn56enpNTU1JSUmMjIxnZ2e2trbv7+8eHh4VFRWGhoYuLi75+fn9+PnpparYXGXPN0LPOEPYXWbqqa7++/tqamqxsbEXFxcbGxvNzc1/f3/Ozs733+HSQ07NLjrXWWL66+zY2NgYGBh8fHzPz8/09PSQkJBOTk739ffMOkdSUlKPj4/19fWkhKLrq6++vr56T3y0MUaWNVa3MUXZX2g0Rox7OGMCRp8AR6ADR55vOmjQPEcJTaNoOmzLLzvLLjtiO2+pP1kzbLMZRJQ3QIQXRJV9VYCOrdWjjaqUlJRPT099fX32+fwtZ7EyaK/69/lTU1PQ0NCAgIAxMTHh6fQya7Pm7fbX19czMzPT09MkJCSgoKD3+fyQr9Y1bbQKTqQ3b7SUstf5+/0nJyeRkZG0tLQhISGsrKxXV1d4eHhlZWX+/v5xcXG5ubm8vLzgoCRaAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAElAS4VndQAAAFISURBVCjPY2CgEmBkQhdhZkHmsbKxc6DKc7JzcSNxeXj5+AUEEXwhAWERUTEEX1xCUkpaBtkAWTl5BUUlGE9ZhV1VTV2DgUFTS1tHV0/fgIFBw9DImN2EFarA1IyP39icgcHC0goMrG0YGGzthEXsHWBGODo5Ay1wcbWCAmugGbJu7h5IdrIALfC0ggMvBgZBb4yw8IFI+vr5WwVgDaxAsHxQcEhoWDhWBRGRUVbRMSEgEItVQVxIfEIiWD4kCUOSCejI5BA4SAE6Ejl2PFLT0hkYMjJh8lnZDAwcOexCMPncvHx+Y1MGhgKoisIiBoZiO+ESs1KoAm4V9rJyUFBXVFZVV9fU1gEtMDSvb2CDBTVDY1Nzi3Q6spta03JYRJUQfB7efP4SISRHlQiLtKWiJhjJdmQT2jsaVJATDEMnSgIDga4uBioBAMJERI7yM7r7AAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_hk]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABFFBMVEW6AAC6AQHFKSntvLzrtLS+DQ345OT+/f355+e7AgLWZmb+/Pzwycn////DIiLGKyvBGxu/ERHfiYnyzs7HMjLfiorilZXUYGC8BwfadXXxzc3VZ2f45eXln5/TXFz77+/vw8O7AwPTXl7xy8vYbm7ruLjGLCzmpqbtvr767u756urMQ0O8CAjz09P99vb34uLwx8fDICDHNDTLQEDMRETadnb12dnmoaG/ExPAFhboqan99fX02trgjIzEJibz0NDz1NTJNzfcf3/ZcXHuvr7MQUHuv7/EJSX9+Pj67e3SWFj//v6/EhLehob++/vwy8v88/Ppra3HMTHCHx/uwMDilJTWZ2f99/f12tq8BgbSWVnFKirY+jP4AAAAAWJLR0QN9rRh9QAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3Izr/obEAAACmSURBVCjPY2AYhIARvzQTMwteeVY2dg5OfAq4uHl4+XBJ8gsIMgqx8QqLiIqJS2BTIMnLKyUtIyvHwSbPrqCIRYESrzKviqqaugavjKaWNhYFOrp6+gaGRsYmpmbmFlgdYWllbWNrYmfvYIjTE45Ozi6uMmxuuOTdPXg1Pb14Nb19cCjw9fMPCAziFeYNxi5vEcKrF8rKEBYegTMwLSJBZFQ0w7ADACDyErqWmAEaAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_id]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYAQMAAAChnW13AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEXnABH///9GPYQdAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3KkMjGRUAAAAQSURBVAjXY2CgAPwHAjIJAJsjL9Ejwc0pAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_th]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYBAMAAABpfeIHAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEWlGTHq2d/09fhGQ18tKkrb2+L///+mSNUGAAAAAWJLR0QGYWa4fQAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3LkRO3QwAAAAkSURBVBjTY2CgAhBEAwxKaIAIAWM0wOCCBugkEIoGyPELFQAAxhk0Eaz+gbcAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}");
+                xlinks_api.insert_styles(".xl-site-tag-icon[data-xl-site-tag-icon=lang_jp]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAUVBMVEX////89ffstsPjlaj77/LacYq+CTS8AC2/CjXacov78PP22+HGJUvGJkz23OLac4z99vjst8Tjlqnkl6nkmKrsuMW/CzbbdY3GJ0323ePadI1SYYEeAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkH80BkfYAAAB6SURBVCjPzZHJDoAgDEQRVBCVVXD5/w+VGIMQSrj6rvOaTlqE/kaHCcFdNe6HkQbYxOF8XujLKsD5mAejB4SBJkigH0sFpgpB0wxdCCYXbCHYXNhaK1yjpC9LIpkKO3AHvn75AR5bROM4K8+STw9/VZ4VUM4Yp9DfuAEcEgb8vRe9xgAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMy0wMS0xMlQwMTozMToyMiswMDowMJwMZyQAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjMtMDEtMTBUMDM6NTA6NTkrMDA6MDAFGLMuAAAAAElFTkSuQmCC)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_cn]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAclBMVEXuHCXxQB/xRx7vKSP4oBD4pA/uHyX0cRf0cBfwOCDuIiTuICTuHSXvJCTvKyP6vQvxSh381wfvKCPvLyL6tgz//wDwMiH1fhX4mxD6uwv6wgryUB3vIyT1dxbyURz+7wPvJyP2iRP4oQ/zXRrzWRv///96F0p+AAAAAWJLR0QlwwHJDwAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkN/i0OQwAAABvSURBVCjPY2AgATAy4ZRiZgaRLKxsuBSwc4ApTi5uHiyyvHx8/Px8fLxApoCgEBYFwiKiQMAvBmRyiQtjtUFCVFQCr/MlpaQkISxprPIysjw8sjIglpy8GF6TFPiEufHJKyqx4dXPoKzCMAoGMwAAo/cEXRjamKYAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_kr]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABoVBMVEX///+7u7vCwsLBwcG9vb3u7u4cHBySkpJ5eXl2dnYdHR3w8PBeXl5paWkwMDCHh4c3Nzf4+Pj29vaFhYU0NDRmZmaOjo6zs7MiIiJzc3NLS0tRUVF+fn56enpNTU1JSUmMjIxnZ2e2trbv7+8eHh4VFRWGhoYuLi75+fn9+PnpparYXGXPN0LPOEPYXWbqqa7++/tqamqxsbEXFxcbGxvNzc1/f3/Ozs733+HSQ07NLjrXWWL66+zY2NgYGBh8fHzPz8/09PSQkJBOTk739ffMOkdSUlKPj4/19fWkhKLrq6++vr56T3y0MUaWNVa3MUXZX2g0Rox7OGMCRp8AR6ADR55vOmjQPEcJTaNoOmzLLzvLLjtiO2+pP1kzbLMZRJQ3QIQXRJV9VYCOrdWjjaqUlJRPT099fX32+fwtZ7EyaK/69/lTU1PQ0NCAgIAxMTHh6fQya7Pm7fbX19czMzPT09MkJCSgoKD3+fyQr9Y1bbQKTqQ3b7SUstf5+/0nJyeRkZG0tLQhISGsrKxXV1d4eHhlZWX+/v5xcXG5ubm8vLzgoCRaAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAElAS4VndQAAAFISURBVCjPY2CgEmBkQhdhZkHmsbKxc6DKc7JzcSNxeXj5+AUEEXwhAWERUTEEX1xCUkpaBtkAWTl5BUUlGE9ZhV1VTV2DgUFTS1tHV0/fgIFBw9DImN2EFarA1IyP39icgcHC0goMrG0YGGzthEXsHWBGODo5Ay1wcbWCAmugGbJu7h5IdrIALfC0ggMvBgZBb4yw8IFI+vr5WwVgDaxAsHxQcEhoWDhWBRGRUVbRMSEgEItVQVxIfEIiWD4kCUOSCejI5BA4SAE6Ejl2PFLT0hkYMjJh8lnZDAwcOexCMPncvHx+Y1MGhgKoisIiBoZiO+ESs1KoAm4V9rJyUFBXVFZVV9fU1gEtMDSvb2CDBTVDY1Nzi3Q6spta03JYRJUQfB7efP4SISRHlQiLtKWiJhjJdmQT2jsaVJATDEMnSgIDga4uBioBAMJERI7yM7r7AAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_hk]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABFFBMVEW6AAC6AQHFKSntvLzrtLS+DQ345OT+/f355+e7AgLWZmb+/Pzwycn////DIiLGKyvBGxu/ERHfiYnyzs7HMjLfiorilZXUYGC8BwfadXXxzc3VZ2f45eXln5/TXFz77+/vw8O7AwPTXl7xy8vYbm7ruLjGLCzmpqbtvr767u756urMQ0O8CAjz09P99vb34uLwx8fDICDHNDTLQEDMRETadnb12dnmoaG/ExPAFhboqan99fX02trgjIzEJibz0NDz1NTJNzfcf3/ZcXHuvr7MQUHuv7/EJSX9+Pj67e3SWFj//v6/EhLehob++/vwy8v88/Ppra3HMTHCHx/uwMDilJTWZ2f99/f12tq8BgbSWVnFKirY+jP4AAAAAWJLR0QN9rRh9QAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3Izr/obEAAACmSURBVCjPY2AYhIARvzQTMwteeVY2dg5OfAq4uHl4+XBJ8gsIMgqx8QqLiIqJS2BTIMnLKyUtIyvHwSbPrqCIRYESrzKviqqaugavjKaWNhYFOrp6+gaGRsYmpmbmFlgdYWllbWNrYmfvYIjTE45Ozi6uMmxuuOTdPXg1Pb14Nb19cCjw9fMPCAziFeYNxi5vEcKrF8rKEBYegTMwLSJBZFQ0w7ADACDyErqWmAEaAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_id]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYAQMAAAChnW13AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEXnABH///9GPYQdAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3KkMjGRUAAAAQSURBVAjXY2CgAPwHAjIJAJsjL9Ejwc0pAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_th]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYBAMAAABpfeIHAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEWlGTHq2d/09fhGQ18tKkrb2+L///+mSNUGAAAAAWJLR0QGYWa4fQAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3LkRO3QwAAAAkSURBVBjTY2CgAhBEAwxKaIAIAWM0wOCCBugkEIoGyPELFQAAxhk0Eaz+gbcAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=site_DS]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAYBQTFRF+YqH/+XMlC4zbAMG/sSr2oN9/Hh58E1V1E1So4CX2dvn6ez3Zlqg/8uz/OrX+WVn49Xc2ur9/tvFuJag6+Tp/tO86Pf/ulZW5pWK2cPJnj1C9pyU/bql9t3Z2H13p0VIu2Zm06Sjy2lmpVZb9ePh9t3L/bSjwoeH/FtguXl82ouD/v/+qFxi5sjG3Z6YmU9W5qaZ+m1w/r+p+JKN2WVn+6mc1ztEzZaXwXFusjY9tEVL5by46mVo8f7/9LOg5Kqj6J2R7Hl327O128rP//Pa+qSYx3l049zk/cSyqmFl1ef9+r6x/K2fzDA62tPc3ef21ZeM9byq1a6w3uLt6bmo9q2cyq22yqOox46QpU5R88y+//v26omF9dbFilZz/LWo/NbO/fDs9MOw/M/B/8+3hh8l/9bC/8S9fhMZ/t/I8q+h+aCW2OX538/V/8ev8KeX1d7wsk9P/vTw8NbR0bzC9LWpvF9e+bylyZ6gznFs+YB/opfB1FxepWBvr2xu8vT5Ltt4cwAAA3xJREFUeNo0kflb2loQhseTEKgQwr6EyCprXJpQEFAUUUERceG2Ba1aldAAEo22aUnR+6/fg+39fjjPec68M9/MHDD/levtsP2528Y2l8tVt9XHNuDL5kajYf/ess+3XIXXsmf+2PMphqI/SaUSSnYR/OuxNxr3xx1/uz6/jJJlj3Pe419FNZpWfhZOCl0wm+32xuM4vNOut5Nsp+xZ8pd3ulKhp5CkIZOsAY7b79uRcN02vxPKJMsu6XO5tYS0niKSPi1YgWMMtOvdZN3WTmub6fKYSPP1GKvSJCmKXq0C9zPgF6rijtmHzBL/SYrxY7YUohWSEytRAzQw0FJVv82VVt3hAz69ilzPSGWHMw/OUIDHR7s9Ha0t2/yo0oum+dgrWrthQ7KsPtCi6KuA0+lMo6m2bitoihLt8Og1xt6GSpJEyD6FHA5xhVZoEtU6EfZBJCdni3I4KQe9vsz6GiF9VEQMmJ0sOVn5uhRVOCV6VkWdDiqZ+s/rfIRQFfIUHv3IR2o/VkocSSqTavrl3Yu3+GHhaeGJPyAe6FOox1TlISp6fXhwOvj5wGK52i5uW58jNxcLskbfQlL6SPoMmQmemuz50jGLJUaZtq0HxPLTRVLaPAWppoiG4IQTOY7r/YOuLJYSxQhfu8Svp5tFZAhCiOPEYHTYo2mSc59LFovFRAnMtw6RvFh4Dgcz4Es0E4bNwWGmVqEdA/XlStoQmFR2WTpb7JytaQYIBHLNL5mYRBDIPRi8R0SRYpgUAysL4SrPb5UgABCSCSx0Mhg47koyzICUkdpWlxerwS8QD5QIQkbhyv7cHAYO1aIgCKl8/ujINC1N4QecQ57w+hS3uz/AuvvWlE0UY5oBxnxehw9AUdNpMyEqPQd2cLgPr4sb+gZjzB8ZjUeMTm2DIFA67F0rbsesgpuuFHEOZcwbU0YjowOAQG2Y9L0EOQPmBv1+ODTSKQq3iSXo2SwIU5Oe/R/ABArlsjpeVYphBAovATamFGCAxsAc1q3sFfeyQOFRcHzUHIKgQzbQFGnHG7C7QrB0IjfKYvNZnngLOD5qcsrfArsxgnjfE6+vc6NR7lqk3ZcAgVyC2+/1B28F1uVX1B3c0fv74r4ys43DKHF415vlW63W3S1Z+v2OOLE63Hhxb6Zx2Do9v4zPtGi1rsks/u5VOWK9/PMWj5//J8AARTPMVw1SAkMAAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=site_MD]{background-image:url(data:image/png;base64,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)}");
 
                 xlinks_api.register({
                     settings: {
                         sites: [ // namespace
-                            //name,      default, title,          description,                             descriptor?
-                            ["mangadex", true,    "mangadex.org", "Enable link processing for mangadex.org"],
+                            //name,      default, title,               description,                             descriptor?
+                            ["mangadex", true,    "mangadex.org",      "Enable link processing for mangadex.org"],
+                            ["dynasty",  true,    "dynasty-scans.com", "Enable link processing for dynasty-scans.com"],
                             // descriptor: { type: string, options: <array of [string:value, string:label, string:description]> }
                             // for pre-existing vars: [ "name" ]
                         ],
                         mangadex: [
+                            ["show_icon", true, "Show an icon instead of an [MD] tag", ""],
                             ["show_orig_lang", true, "Show original language", "Include the original language of a series as a tag [jp], etc."],
-                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags. These will replace [MD]."],
+                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags in place of the [MD] tag or icon."],
                             ["show_volume", true, "Show volume number", ""],
                             ["show_ch_title", true, "Show chapter title", ""],
                             ["show_pages", true, "Show page number", ""],
                             ["show_group", false, "Show group name", ""],
+                            ["custom_title", false, "Non-default series title language", "With the default title as fallback"],
+                            ["title_search_order", "en, orig-ro, orig", "Series title search order",
+                                "orig = original language; -ro = romanized; e.g. ja, ja-ro, en, zh, zh-hk, ko, id, th, es, vi, de, ru, uk, fr, fa, pt, pt-br, tr, ...",
+                                {type: "textbox"}],
                             // ["show_ch_lang", false, "Show chapter language", "Include the language a chapter was translated into"],
+                        ],
+                        dynasty: [
+                            ["show_icon", true, "Show an icon instead of a [DS] tag", ""],
+                            ["show_pages", true, "Show page number", ""],
+                            ["show_group", false, "Show group name", ""],
                         ]
                     },
                     request_apis: [{
@@ -1879,8 +2065,8 @@
                         delay_okay: 350,
                         delay_error: 5000,
                         functions: {
-                            get_data: md_get_data,
-                            set_data: md_set_data,
+                            // get_data: md_get_data,
+                            // set_data: md_set_data,
                             setup_xhr: md_chapter_setup_xhr,
                             parse_response: md_chapter_parse_response
                         },
@@ -1910,21 +2096,45 @@
                             setup_xhr: md_group_setup_xhr,
                             parse_response: md_group_parse_response
                         },
+                    },
+                    {
+                        group: "dynasty",
+                        namespace: "dynasty",
+                        type: "chapter",
+                        count: 1,
+                        concurrent: 1,
+                        delay_okay: 100,
+                        delay_error: 5000,
+                        functions: {
+                            setup_xhr: ds_chapter_setup_xhr,
+                            parse_response: ds_chapter_parse_response
+                        },
                     }],
                     linkifiers: [{
                         regex: /(https?:\/*)?(?:www\.)?mangadex\.org\/chapter(?:\/[a-z0-9\-]*)?/i,
                         prefix_group: 1,
                         prefix: "https://",
+                    },
+                    {
+                        regex: /(https?:\/*)?(?:www\.)?dynasty-scans.com\/chapters\/(?:.+)?/i,
+                        prefix_group: 1,
+                        prefix: "https://",
                     }],
                     commands: [{
-                        url_info: ch_url_get_info,
-                        to_data: ch_url_info_to_data,
+                        url_info: md_ch_url_get_info,
+                        to_data: md_ch_url_info_to_data,
+                        // actions: create_actions,
+                        // details: create_details
+                    },
+                    {
+                        url_info: ds_ch_url_get_info,
+                        to_data: ds_ch_url_info_to_data,
                         // actions: create_actions,
                         // details: create_details
                     }]
                 });
             }
-        }._w(91));
+        }._w(99));
     }._w(67);
     main(xlinks_api);
 })();

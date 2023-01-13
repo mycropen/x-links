@@ -1,8 +1,8 @@
 {
     "name": "X-links Extension - Mangadex",
-    "version": "1.1",
+    "version": "1.2",
     "author": "mycropen",
-    "description": "Linkify and format Mangadex links",
+    "description": "Linkify and format Mangadex & Dynasty-Scans links",
     "namespace": "mycropen",
     "urls": {
         "homepage": "https://dnsev-h.github.io/x-links/",
