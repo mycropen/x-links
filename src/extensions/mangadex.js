@@ -54,12 +54,16 @@
             return new Function(...names, `return \`${str}\`;`)(...vals);
         }
 
-        var strip = function (str) {
-            str = str.replace(/^\s+/, "");
-            str = str.replace(/\s+$/, "");
-            return str;
-        }
-        
+        var lang_to_flag = {
+            "ja": "lang_jp",
+            "jp": "lang_jp",
+            "ko": "lang_kr",
+            "zh": "lang_cn",
+            "zh-hk": "lang_hk",
+            "id": "lang_id",
+            "th": "lang_th",
+        };
+
         var DataAggregator = function (final_callback) {
             this.callback = final_callback;
             this.context = null;
@@ -104,7 +108,7 @@
 
             // aggdata.title
             // "${manga_lang} ${manga} ${volume} ${chapter} ${title} ${pages} ${group}"
-            if (xlinks_api.config.mangadex.show_orig_lang && data.manga.originalLanguage)
+            if (xlinks_api.config.mangadex.show_orig_lang && !xlinks_api.config.mangadex.use_flags && data.manga.originalLanguage)
                 template += "${manga_lang} ";
             if (data.manga.title || data.manga.altTitles)
                 template += "${manga} ";
@@ -166,6 +170,15 @@
 
         var aggregators = {};
         
+        var replace_icon = function (ch_id, flag) {
+            // url_info.icon was set to a placeholder if use_flags is set
+            // this replaces it with the real flag icon after the manga data was acquired
+            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+ch_id+"]");
+            for (var i = 0; i < nodes.length; i++) {
+                nodes[i].setAttribute("data-xl-site-tag-icon", flag);
+            }
+        }
+
         // functions that interact with the API
         var md_get_data = function (info, callback) {
             var data = xlinks_api.cache_get(info.id);
@@ -211,6 +224,7 @@
             }
 
             data = {
+                id: null,
                 chapter: null,
                 volume: null,
                 publishAt: null,
@@ -224,6 +238,7 @@
                 return;
             }
 
+            if (jsdata.data.id) data.id = jsdata.data.id;
             if (jsdata.data.attributes.chapter) data.chapter = jsdata.data.attributes.chapter;
             if (jsdata.data.attributes.volume) data.volume = jsdata.data.attributes.volume;
             if (jsdata.data.attributes.publishAt) data.publishAt = jsdata.data.attributes.publishAt;
@@ -285,6 +300,9 @@
 
             if (data.originalLanguage == "ja") data.originalLanguage = "jp";
 
+            if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[data.originalLanguage] !== undefined && xhr.context !== undefined)
+                replace_icon(xhr.context, lang_to_flag[data.originalLanguage]);
+
             xlinks_api.cache_set("manga_" + jsdata.data.id, data, 7 * xlinks_api.ttl_1_day);
             if (xhr.context !== undefined) {
                 aggregators[xhr.context].add_data("manga", data);
@@ -340,6 +358,11 @@
                     tag: "MD",
                     context: m[2],
                 };
+
+                // hack a way to use the site icon as a language flag
+                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags)
+                    url_info.icon = "replaceme-"+url_info.id;
+
                 callback(null, url_info);
             }
             else {
@@ -359,15 +382,15 @@
                     var has_manga = false;
                     var has_groups = 0;
                     var group_num = 0;
-                    
-                    for (var i = 0; i < data.relationships.length; i++) {
-                        if (data.relationships[i].type == "scanlation_group") {
-                            group_num++;
-                        }
-                    }
-                    aggregator.group_num = group_num;
 
                     if (data.relationships !== undefined) {
+                        for (var i = 0; i < data.relationships.length; i++) {
+                            if (data.relationships[i].type == "scanlation_group") {
+                                group_num++;
+                            }
+                        }
+                        aggregator.group_num = group_num;
+
                         for (var i = 0; i < data.relationships.length; i++) {
                             if (data.relationships[i].type == "scanlation_group") {
                                 has_groups++;
@@ -397,6 +420,8 @@
                                 var mangadata = xlinks_api.cache_get("manga_" + manga_url_info.id);
     
                                 if (mangadata !== null) {
+                                    if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[mangadata.originalLanguage] !== undefined)
+                                        replace_icon(data.id, lang_to_flag[mangadata.originalLanguage]);
                                     aggregator.add_data("manga", mangadata);
                                 }
                                 else {
@@ -452,12 +477,12 @@
                         ],
                         mangadex: [
                             ["show_orig_lang", true, "Show original language", "Include the original language of a series as a tag [jp], etc."],
+                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags. These will replace [MD]."],
                             ["show_volume", true, "Show volume number", ""],
                             ["show_ch_title", true, "Show chapter title", ""],
                             ["show_pages", true, "Show page number", ""],
                             ["show_group", false, "Show group name", ""],
                             // ["show_ch_lang", false, "Show chapter language", "Include the language a chapter was translated into"],
-                            // ["use_flags", true, "Use flags", "Show country flags instead of [jp], etc."],
                         ]
                     },
                     request_apis: [{

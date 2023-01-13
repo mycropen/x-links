@@ -1,4 +1,5 @@
-/*.xl-site-tag-icon[data-xl-site-tag-icon=lang_jp] {
+
+.xl-site-tag-icon[data-xl-site-tag-icon=lang_jp] {
     background-image: url('#{data:../../images/extensions/mangadex/jp.png}#');
 }
 
@@ -8,4 +9,16 @@
 
 .xl-site-tag-icon[data-xl-site-tag-icon=lang_kr] {
     background-image: url('#{data:../../images/extensions/mangadex/kr.png}#');
-}*/
+}
+
+.xl-site-tag-icon[data-xl-site-tag-icon=lang_hk] {
+    background-image: url('#{data:../../images/extensions/mangadex/hk.png}#');
+}
+
+.xl-site-tag-icon[data-xl-site-tag-icon=lang_id] {
+    background-image: url('#{data:../../images/extensions/mangadex/id.png}#');
+}
+
+.xl-site-tag-icon[data-xl-site-tag-icon=lang_th] {
+    background-image: url('#{data:../../images/extensions/mangadex/th.png}#');
+}

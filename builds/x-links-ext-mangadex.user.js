@@ -2,7 +2,7 @@
 // @name        X-links Extension - Mangadex
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.0
+// @version     1.1
 // @description Linkify and format Mangadex links
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
@@ -1250,12 +1250,16 @@
             return new Function(...names, `return \`${str}\`;`)(...vals);
         }
 
-        var strip = function (str) {
-            str = str.replace(/^\s+/, "");
-            str = str.replace(/\s+$/, "");
-            return str;
-        }
-        
+        var lang_to_flag = {
+            "ja": "lang_jp",
+            "jp": "lang_jp",
+            "ko": "lang_kr",
+            "zh": "lang_cn",
+            "zh-hk": "lang_hk",
+            "id": "lang_id",
+            "th": "lang_th",
+        };
+
         var DataAggregator = function (final_callback) {
             this.callback = final_callback;
             this.context = null;
@@ -1300,7 +1304,7 @@
 
             // aggdata.title
             // "${manga_lang} ${manga} ${volume} ${chapter} ${title} ${pages} ${group}"
-            if (xlinks_api.config.mangadex.show_orig_lang && data.manga.originalLanguage)
+            if (xlinks_api.config.mangadex.show_orig_lang && !xlinks_api.config.mangadex.use_flags && data.manga.originalLanguage)
                 template += "${manga_lang} ";
             if (data.manga.title || data.manga.altTitles)
                 template += "${manga} ";
@@ -1362,6 +1366,15 @@
 
         var aggregators = {};
         
+        var replace_icon = function (ch_id, flag) {
+            // url_info.icon was set to a placeholder if use_flags is set
+            // this replaces it with the real flag icon after the manga data was acquired
+            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+ch_id+"]");
+            for (var i = 0; i < nodes.length; i++) {
+                nodes[i].setAttribute("data-xl-site-tag-icon", flag);
+            }
+        }
+
         // functions that interact with the API
         var md_get_data = function (info, callback) {
             var data = xlinks_api.cache_get(info.id);
@@ -1407,6 +1420,7 @@
             }
 
             data = {
+                id: null,
                 chapter: null,
                 volume: null,
                 publishAt: null,
@@ -1420,6 +1434,7 @@
                 return;
             }
 
+            if (jsdata.data.id) data.id = jsdata.data.id;
             if (jsdata.data.attributes.chapter) data.chapter = jsdata.data.attributes.chapter;
             if (jsdata.data.attributes.volume) data.volume = jsdata.data.attributes.volume;
             if (jsdata.data.attributes.publishAt) data.publishAt = jsdata.data.attributes.publishAt;
@@ -1481,6 +1496,9 @@
 
             if (data.originalLanguage == "ja") data.originalLanguage = "jp";
 
+            if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[data.originalLanguage] !== undefined && xhr.context !== undefined)
+                replace_icon(xhr.context, lang_to_flag[data.originalLanguage]);
+
             xlinks_api.cache_set("manga_" + jsdata.data.id, data, 7 * xlinks_api.ttl_1_day);
             if (xhr.context !== undefined) {
                 aggregators[xhr.context].add_data("manga", data);
@@ -1536,6 +1554,11 @@
                     tag: "MD",
                     context: m[2],
                 };
+
+                // hack a way to use the site icon as a language flag
+                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags)
+                    url_info.icon = "replaceme-"+url_info.id;
+
                 callback(null, url_info);
             }
             else {
@@ -1555,15 +1578,15 @@
                     var has_manga = false;
                     var has_groups = 0;
                     var group_num = 0;
-                    
-                    for (var i = 0; i < data.relationships.length; i++) {
-                        if (data.relationships[i].type == "scanlation_group") {
-                            group_num++;
-                        }
-                    }
-                    aggregator.group_num = group_num;
 
                     if (data.relationships !== undefined) {
+                        for (var i = 0; i < data.relationships.length; i++) {
+                            if (data.relationships[i].type == "scanlation_group") {
+                                group_num++;
+                            }
+                        }
+                        aggregator.group_num = group_num;
+
                         for (var i = 0; i < data.relationships.length; i++) {
                             if (data.relationships[i].type == "scanlation_group") {
                                 has_groups++;
@@ -1593,6 +1616,8 @@
                                 var mangadata = xlinks_api.cache_get("manga_" + manga_url_info.id);
     
                                 if (mangadata !== null) {
+                                    if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[mangadata.originalLanguage] !== undefined)
+                                        replace_icon(data.id, lang_to_flag[mangadata.originalLanguage]);
                                     aggregator.add_data("manga", mangadata);
                                 }
                                 else {
@@ -1631,12 +1656,12 @@
             name: "Mangadex links",
             author: "mycropen",
             description: "Linkify and format Mangadex links",
-            version: ["1#version0"],
+            version: ["1#version1"],
             registrations: 1,
             main: main_fn
         }, function (err) {
             if (err === null) {
-                xlinks_api.insert_styles("");
+                xlinks_api.insert_styles(".xl-site-tag-icon[data-xl-site-tag-icon=lang_jp]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAUVBMVEX////89ffstsPjlaj77/LacYq+CTS8AC2/CjXacov78PP22+HGJUvGJkz23OLac4z99vjst8Tjlqnkl6nkmKrsuMW/CzbbdY3GJ0323ePadI1SYYEeAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkH80BkfYAAAB6SURBVCjPzZHJDoAgDEQRVBCVVXD5/w+VGIMQSrj6rvOaTlqE/kaHCcFdNe6HkQbYxOF8XujLKsD5mAejB4SBJkigH0sFpgpB0wxdCCYXbCHYXNhaK1yjpC9LIpkKO3AHvn75AR5bROM4K8+STw9/VZ4VUM4Yp9DfuAEcEgb8vRe9xgAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMy0wMS0xMlQwMTozMToyMiswMDowMJwMZyQAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjMtMDEtMTBUMDM6NTA6NTkrMDA6MDAFGLMuAAAAAElFTkSuQmCC)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_cn]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAclBMVEXuHCXxQB/xRx7vKSP4oBD4pA/uHyX0cRf0cBfwOCDuIiTuICTuHSXvJCTvKyP6vQvxSh381wfvKCPvLyL6tgz//wDwMiH1fhX4mxD6uwv6wgryUB3vIyT1dxbyURz+7wPvJyP2iRP4oQ/zXRrzWRv///96F0p+AAAAAWJLR0QlwwHJDwAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkN/i0OQwAAABvSURBVCjPY2AgATAy4ZRiZgaRLKxsuBSwc4ApTi5uHiyyvHx8/Px8fLxApoCgEBYFwiKiQMAvBmRyiQtjtUFCVFQCr/MlpaQkISxprPIysjw8sjIglpy8GF6TFPiEufHJKyqx4dXPoKzCMAoGMwAAo/cEXRjamKYAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_kr]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABoVBMVEX///+7u7vCwsLBwcG9vb3u7u4cHBySkpJ5eXl2dnYdHR3w8PBeXl5paWkwMDCHh4c3Nzf4+Pj29vaFhYU0NDRmZmaOjo6zs7MiIiJzc3NLS0tRUVF+fn56enpNTU1JSUmMjIxnZ2e2trbv7+8eHh4VFRWGhoYuLi75+fn9+PnpparYXGXPN0LPOEPYXWbqqa7++/tqamqxsbEXFxcbGxvNzc1/f3/Ozs733+HSQ07NLjrXWWL66+zY2NgYGBh8fHzPz8/09PSQkJBOTk739ffMOkdSUlKPj4/19fWkhKLrq6++vr56T3y0MUaWNVa3MUXZX2g0Rox7OGMCRp8AR6ADR55vOmjQPEcJTaNoOmzLLzvLLjtiO2+pP1kzbLMZRJQ3QIQXRJV9VYCOrdWjjaqUlJRPT099fX32+fwtZ7EyaK/69/lTU1PQ0NCAgIAxMTHh6fQya7Pm7fbX19czMzPT09MkJCSgoKD3+fyQr9Y1bbQKTqQ3b7SUstf5+/0nJyeRkZG0tLQhISGsrKxXV1d4eHhlZWX+/v5xcXG5ubm8vLzgoCRaAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAElAS4VndQAAAFISURBVCjPY2CgEmBkQhdhZkHmsbKxc6DKc7JzcSNxeXj5+AUEEXwhAWERUTEEX1xCUkpaBtkAWTl5BUUlGE9ZhV1VTV2DgUFTS1tHV0/fgIFBw9DImN2EFarA1IyP39icgcHC0goMrG0YGGzthEXsHWBGODo5Ay1wcbWCAmugGbJu7h5IdrIALfC0ggMvBgZBb4yw8IFI+vr5WwVgDaxAsHxQcEhoWDhWBRGRUVbRMSEgEItVQVxIfEIiWD4kCUOSCejI5BA4SAE6Ejl2PFLT0hkYMjJh8lnZDAwcOexCMPncvHx+Y1MGhgKoisIiBoZiO+ESs1KoAm4V9rJyUFBXVFZVV9fU1gEtMDSvb2CDBTVDY1Nzi3Q6spta03JYRJUQfB7efP4SISRHlQiLtKWiJhjJdmQT2jsaVJATDEMnSgIDga4uBioBAMJERI7yM7r7AAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_hk]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABFFBMVEW6AAC6AQHFKSntvLzrtLS+DQ345OT+/f355+e7AgLWZmb+/Pzwycn////DIiLGKyvBGxu/ERHfiYnyzs7HMjLfiorilZXUYGC8BwfadXXxzc3VZ2f45eXln5/TXFz77+/vw8O7AwPTXl7xy8vYbm7ruLjGLCzmpqbtvr767u756urMQ0O8CAjz09P99vb34uLwx8fDICDHNDTLQEDMRETadnb12dnmoaG/ExPAFhboqan99fX02trgjIzEJibz0NDz1NTJNzfcf3/ZcXHuvr7MQUHuv7/EJSX9+Pj67e3SWFj//v6/EhLehob++/vwy8v88/Ppra3HMTHCHx/uwMDilJTWZ2f99/f12tq8BgbSWVnFKirY+jP4AAAAAWJLR0QN9rRh9QAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3Izr/obEAAACmSURBVCjPY2AYhIARvzQTMwteeVY2dg5OfAq4uHl4+XBJ8gsIMgqx8QqLiIqJS2BTIMnLKyUtIyvHwSbPrqCIRYESrzKviqqaugavjKaWNhYFOrp6+gaGRsYmpmbmFlgdYWllbWNrYmfvYIjTE45Ozi6uMmxuuOTdPXg1Pb14Nb19cCjw9fMPCAziFeYNxi5vEcKrF8rKEBYegTMwLSJBZFQ0w7ADACDyErqWmAEaAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_id]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYAQMAAAChnW13AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEXnABH///9GPYQdAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3KkMjGRUAAAAQSURBVAjXY2CgAPwHAjIJAJsjL9Ejwc0pAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_th]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYBAMAAABpfeIHAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEWlGTHq2d/09fhGQ18tKkrb2+L///+mSNUGAAAAAWJLR0QGYWa4fQAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3LkRO3QwAAAAkSURBVBjTY2CgAhBEAwxKaIAIAWM0wOCCBugkEIoGyPELFQAAxhk0Eaz+gbcAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}");
 
                 xlinks_api.register({
                     settings: {
@@ -1648,12 +1673,12 @@
                         ],
                         mangadex: [
                             ["show_orig_lang", true, "Show original language", "Include the original language of a series as a tag [jp], etc."],
+                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags. These will replace [MD]."],
                             ["show_volume", true, "Show volume number", ""],
                             ["show_ch_title", true, "Show chapter title", ""],
                             ["show_pages", true, "Show page number", ""],
                             ["show_group", false, "Show group name", ""],
                             // ["show_ch_lang", false, "Show chapter language", "Include the language a chapter was translated into"],
-                            // ["use_flags", true, "Use flags", "Show country flags instead of [jp], etc."],
                         ]
                     },
                     request_apis: [{

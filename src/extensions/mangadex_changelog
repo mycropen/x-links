@@ -1,5 +1,9 @@
 master
 
+1.1
+- mycropen
+  + Added option to show country flags instead of [MD]
+
 1.0
 - mycropen
   + Initial release

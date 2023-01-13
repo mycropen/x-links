@@ -2,7 +2,7 @@
 // @name        X-links Extension - Mangadex
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.0
+// @version     1.1
 // @description Linkify and format Mangadex links
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
