@@ -2,7 +2,7 @@
 // @name        X-links Extension - Mangadex (debug)
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.3.-0xDB
+// @version     1.3.1.-0xDB
 // @description Linkify and format Mangadex & Dynasty-Scans links
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
@@ -2154,8 +2154,8 @@
                 // get data from aggregator's manga data or cached manga data
                 var author_ids = Array();
                 var artist_ids = Array();
-                var author_list = Array();
                 var mangadata;
+                var author_list = Array();
                 if (aggregators[url_info.id].data.manga.relationships)
                     mangadata = aggregators[url_info.id].data.manga;
                 else
@@ -2202,16 +2202,77 @@
                 return;
             }
 
+            // [[id, name, group], [id, name, group], ...]
+            var tag_data = Array();
+            var tag_groups = {
+                "Genre:": [],
+                "Theme:": [],
+                "Format:": [],
+            };
+            var mangadata;
+            // console.log([]);
+            if (aggregators[url_info.id].data.manga.tags)
+                mangadata = aggregators[url_info.id].data.manga;
+            else {
+                let cached_mangadata = xlinks_api.cache_get("manga_" + aggregators[url_info.id].data.manga.id);
+                if (cached_mangadata.tags)
+                    mangadata = cached_mangadata;
+                else
+                    mangadata = {tags: []};
+            }
+
+            for (var i = 0; i < mangadata.tags.length; i++) {
+                let tag_id = mangadata.tags[i].id;
+                let tag_group = mangadata.tags[i].attributes.group;
+                tag_group = tag_group.charAt(0).toUpperCase() + tag_group.substr(1);
+
+                let tag_name = "";
+                if (mangadata.tags[i].attributes.name.en !== undefined)
+                    tag_name = mangadata.tags[i].attributes.name.en;
+                else {
+                    let keys = Object.keys(mangadata.tags[i].attributes.name);
+                    tag_name = mangadata.tags[i].attributes.name[keys[0]];
+                }
+                
+                if (tag_groups[tag_group] == undefined)
+                    tag_groups[tag_group] = Array();
+                tag_groups[tag_group].push([tag_id, tag_name, tag_group]);
+            }
+
+            let tag_group_keys = Object.keys(tag_groups);
+            for (var i = 0; i < tag_group_keys.length; i++) {
+                tag_data = tag_data.concat(tag_groups[tag_group_keys[i]]);
+            }
+
             // array of [descriptor, url, link_text]
             var urls = Array();
             var base_url = "https://mangadex.org/";
+            var last_descriptor = "";
 
             urls.push(["Title:", base_url + "title/" + title_data[0], title_data[1]]);
             for (var i = 0; i < group_data.length; i++) {
-                urls.push(["Group:", base_url + "group/" + group_data[i][0], group_data[i][1]]);
+                let descriptor = "Group:";
+                if (last_descriptor == descriptor)
+                    descriptor = "";
+                else
+                    last_descriptor = descriptor
+                urls.push([descriptor, base_url + "group/" + group_data[i][0], group_data[i][1]]);
             }
             for (var i = 0; i < author_data.length; i++) {
-                urls.push([author_data[i][2].join(", ") + ":", base_url + "author/" + author_data[i][0], author_data[i][1]]);
+                let descriptor = author_data[i][2].join(", ") + ":";
+                if (last_descriptor == descriptor)
+                    descriptor = "";
+                else
+                    last_descriptor = descriptor
+                urls.push([descriptor, base_url + "author/" + author_data[i][0], author_data[i][1]]);
+            }
+            for (var i = 0; i < tag_data.length; i++) {
+                let descriptor = tag_data[i][2] + ":";
+                if (last_descriptor == descriptor)
+                    descriptor = "";
+                else
+                    last_descriptor = descriptor
+                urls.push([descriptor, base_url + "tag/" + tag_data[i][0], tag_data[i][1]]);
             }
 
             callback(null, urls);
@@ -2403,19 +2464,44 @@
             // array of [descriptor, url, link_text]
             var urls = Array();
             var base_url = "https://dynasty-scans.com";
+            var last_descriptor = "";
 
             if (data.releasedAt)
                 urls.push(["Released:", null, data.releasedAt]);
             if (data.links.base_title.length > 0)
                 urls.push(["Title:", base_url + data.links.base_title[0], data.links.base_title[1]]);
-            for (i=0; i < data.authors.length; i++)
-                urls.push(["Author:", base_url + data.links.authors[data.authors[i]], data.authors[i]]);
-            for (i=0; i < data.groups.length; i++)
-                urls.push(["Group:", base_url + data.links.groups[data.groups[i]], data.groups[i]]);
-            for (i=0; i < data.volumes.length; i++)
-                urls.push(["Volume:", base_url + data.links.volumes[data.volumes[i]], data.volumes[i]]);
-            for (i=0; i < data.tags.length; i++)
-                urls.push(["Tag:", base_url + data.links.tags[data.tags[i]], data.tags[i]]);
+            for (i=0; i < data.authors.length; i++) {
+                let descriptor = "Author:";
+                if (last_descriptor == descriptor)
+                    descriptor = "";
+                else
+                    last_descriptor = descriptor
+                urls.push([descriptor, base_url + data.links.authors[data.authors[i]], data.authors[i]]);
+            }
+            for (i=0; i < data.groups.length; i++) {
+                let descriptor = "Group:";
+                if (last_descriptor == descriptor)
+                    descriptor = "";
+                else
+                    last_descriptor = descriptor
+                urls.push([descriptor, base_url + data.links.groups[data.groups[i]], data.groups[i]]);
+            }
+            for (i=0; i < data.volumes.length; i++) {
+                let descriptor = "Volume:";
+                if (last_descriptor == descriptor)
+                    descriptor = "";
+                else
+                    last_descriptor = descriptor
+                urls.push([descriptor, base_url + data.links.volumes[data.volumes[i]], data.volumes[i]]);
+            }
+            for (i=0; i < data.tags.length; i++) {
+                let descriptor = "Tag:";
+                if (last_descriptor == descriptor)
+                    descriptor = "";
+                else
+                    last_descriptor = descriptor
+                urls.push([descriptor, base_url + data.links.tags[data.tags[i]], data.tags[i]]);
+            }
 
             callback(null, urls);
         }._w(106);
@@ -2425,7 +2511,7 @@
             name: "Mangadex & Dynasty links",
             author: "mycropen",
             description: "Linkify and format Mangadex & Dynasty-Scans links",
-            version: [1,3,-0xDB],
+            version: [1,3,1,-0xDB],
             registrations: 1,
             main: main_fn
         }, function (err) {
@@ -2500,7 +2586,7 @@
                         prefix: "https://",
                     },
                     {
-                        regex: /(https?:\/*)?(?:www\.)?dynasty-scans.com\/chapters\/(?:.+)?/i,
+                        regex: /(https?:\/*)?(?:www\.)?dynasty-scans.com\/chapters\/(?:[^\s]+)?/i,
                         prefix_group: 1,
                         prefix: "https://",
                     }],
