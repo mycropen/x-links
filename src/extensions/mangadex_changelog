@@ -1,5 +1,10 @@
 master
 
+1.3
+- mycropen
+  + Added detail links
+  + Combined several MD API requests so each link should at most need 2
+
 1.2
 - mycropen
   + Added support for dynasty-scans.com chapter links and more options for Mangadex links
