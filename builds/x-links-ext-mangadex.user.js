@@ -2,7 +2,7 @@
 // @name        X-links Extension - Mangadex
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.3.1
+// @version     1.3.2
 // @description Linkify and format Mangadex & Dynasty-Scans links
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
@@ -2322,7 +2322,7 @@
             name: "Mangadex & Dynasty links",
             author: "mycropen",
             description: "Linkify and format Mangadex & Dynasty-Scans links",
-            version: [1,3,1],
+            version: [1,3,2],
             registrations: 1,
             main: main_fn
         }, function (err) {
@@ -2392,7 +2392,7 @@
                     linkifiers: [{
                         // mangadex.org can only be preceeded by "https://" or "www." or both or neither
                         // the link ends either with the ID, a "/", a "#" or "/5" (for page 5)
-                        regex: /^\s*(https?:\/\/)?(www\.)?(?<=(www\.|\/\/|\s+|^))mangadex\.org\/chapter\/([a-z0-9\-]+)(\/|\/\d+|\/\d+)?#?\s*$/i,
+                        regex: /(https?:\/\/)?(www\.)?(?<=(www\.|\/\/|\s+|^))mangadex\.org\/chapter\/([a-z0-9\-]+)(\/|\/\d+|\/\d+)?#?/i,
                         prefix_group: 1,
                         prefix: "https://",
                     },

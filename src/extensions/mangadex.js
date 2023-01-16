@@ -1196,7 +1196,7 @@
                     linkifiers: [{
                         // mangadex.org can only be preceeded by "https://" or "www." or both or neither
                         // the link ends either with the ID, a "/", a "#" or "/5" (for page 5)
-                        regex: /^\s*(https?:\/\/)?(www\.)?(?<=(www\.|\/\/|\s+|^))mangadex\.org\/chapter\/([a-z0-9\-]+)(\/|\/\d+|\/\d+)?#?\s*$/i,
+                        regex: /(https?:\/\/)?(www\.)?(?<=(www\.|\/\/|\s+|^))mangadex\.org\/chapter\/([a-z0-9\-]+)(\/|\/\d+|\/\d+)?#?/i,
                         prefix_group: 1,
                         prefix: "https://",
                     },
