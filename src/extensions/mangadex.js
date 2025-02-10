@@ -388,8 +388,8 @@
                     // flag not implemented
                     replace_icon(ctx[1], 'site_MD');
 
-            if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
-                get_other_manga_data(ctx[1], data, aggregator);
+            // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
+            get_other_manga_data(ctx[1], data, aggregator);
 
             xlinks_api.cache_set("manga_" + jsdata.data.id, data, 7 * xlinks_api.ttl_1_day);
             aggregator.add_data("manga", data);
@@ -590,8 +590,10 @@
                     includes: ["scanlation_group"],
                 };
 
-                if (!xlinks_api.config.mangadex.show_author && !xlinks_api.config.mangadex.show_artist)
-                    url_info.includes.push("manga");
+                // If we don't need the author or artist, we only need to make one API call
+                // This will populate the chapter's relationship attributes with *some* manga information
+                // if (!xlinks_api.config.mangadex.show_author && !xlinks_api.config.mangadex.show_artist)
+                //     url_info.includes.push("manga");
 
                 // hack a way to use the site icon as a language flag
                 if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags)
@@ -671,47 +673,24 @@
 
                         case "manga": {
                             has_manga = true;
-                            if (data.relationships[i].attributes !== undefined && !xlinks_api.config.mangadex.show_author && !xlinks_api.config.mangadex.show_artist) {
-                                var mangadata = {
-                                    id:               data.relationships[i].id || null,
-                                    title:            data.relationships[i].attributes.title || null,
-                                    altTitles:        data.relationships[i].attributes.altTitles || null,
-                                    descrition:       data.relationships[i].attributes.descrition || null,
-                                    originalLanguage: data.relationships[i].attributes.originalLanguage || null,
-                                    state:            data.relationships[i].attributes.state || null,
-                                    status:           data.relationships[i].attributes.status || null,
-                                    tags:             data.relationships[i].attributes.tags || null,
-                                    relationships:    data.relationships[i].relationships || null,
-                                };
-
-                                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags)
-                                    if (lang_to_flag[mangadata.originalLanguage] !== undefined)
-                                        replace_icon(data.id, lang_to_flag[mangadata.originalLanguage]);
-                                    else
-                                        // flag not implemented
-                                        replace_icon(data.id, 'site_MD');
-                                aggregator.add_data("manga", mangadata);
-                                // do not cache this data because it cannot have author/artist entries
+                            // (v1.4) new strategy: always make a manga API call to so we have the author/artist info ready for the actions pane
+                            let manga_url_info = {
+                                id: data.relationships[i].id,
+                                context: "manga_" + data.id,
+                                type: "manga",
+                                includes: ["author", "artist"],
+                            };
+                            
+                            let cached_mangadata = xlinks_api.cache_get("manga_" + manga_url_info.id);
+                            if (cached_mangadata !== null && cached_mangadata.relationships) {
+                                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[cached_mangadata.originalLanguage] !== undefined)
+                                    replace_icon(data.id, lang_to_flag[cached_mangadata.originalLanguage]);
+                                // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
+                                get_other_manga_data(data.id, cached_mangadata, aggregator);
+                                aggregator.add_data("manga", cached_mangadata);
                             }
-                            else {
-                                let manga_url_info = {
-                                    id: data.relationships[i].id,
-                                    context: "manga_" + data.id,
-                                    type: "manga",
-                                    includes: ["author", "artist"],
-                                };
-                                
-                                let cached_mangadata = xlinks_api.cache_get("manga_" + manga_url_info.id);
-                                if (cached_mangadata !== null && cached_mangadata.relationships) {
-                                    if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[cached_mangadata.originalLanguage] !== undefined)
-                                        replace_icon(data.id, lang_to_flag[cached_mangadata.originalLanguage]);
-                                    if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
-                                        get_other_manga_data(data.id, cached_mangadata, aggregator);
-                                    aggregator.add_data("manga", cached_mangadata);
-                                }
-                                else
-                                    xlinks_api.request("mangadex", "generic", manga_url_info.id, manga_url_info, (err, data) => {});
-                            }
+                            else
+                                xlinks_api.request("mangadex", "generic", manga_url_info.id, manga_url_info, (err, data) => {});
                             break;
                         }
                     }
