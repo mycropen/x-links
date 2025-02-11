@@ -240,6 +240,42 @@
             }
         }
 
+        var modify_icon = function (ch_id, site, apply_style) {
+            // applies a style to the site icon
+            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=modifyme-"+ch_id+"]");
+            if (site === "dynasty") {
+                var style_str = "";
+
+                if (apply_style) {
+                    switch (xlinks_api.config.dynasty.tag_filter_style) {
+                        case "none":          style_str = ""; break;
+                        case "rotate180":     style_str = "transform: rotate(180deg)"; break;
+                        case "long_strip":    style_str = "transform: scaleX(0.5)"; break;
+                        case "invert":        style_str = "filter: invert(1)"; break;
+                        case "grayscale":     style_str = "filter: grayscale(1)"; break;
+                        case "opacity50":     style_str = "filter: opacity(0.5)"; break;
+                        case "drop_shadow":   style_str = "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"; break;
+                        case "sepia":         style_str = "filter: sepia(1)"; break;
+                        case "blur1.5":       style_str = "filter: blur(1.5px)"; break;
+                        case "hue_rotate90":  style_str = "filter: hue-rotate(90deg)"; break;
+                        case "hue_rotate180": style_str = "filter: hue-rotate(180deg)"; break;
+                        case "hue_rotate270": style_str = "filter: hue-rotate(270deg)"; break;
+                        case "custom":        style_str = xlinks_api.config.dynasty.tag_filter_style_custom.trim(); break;
+                    }
+                }
+                // console.log([ch_id, apply_style, xlinks_api.config.dynasty.tag_filter_style, style_str]);
+
+                for (let i = 0; i < nodes.length; i++) {
+                    let node_style = nodes[i].getAttribute("style");
+                    nodes[i].setAttribute("data-xl-site-tag-icon", "site_DS");
+                    if (node_style === undefined || node_style === null)
+                        nodes[i].setAttribute("style", style_str) 
+                    else
+                        nodes[i].setAttribute("style", [node_style.trim(";"), style_str].join(";")) 
+                }
+            }
+        }
+
 
         // functions that interact with the API
         // Mangadex
@@ -989,7 +1025,7 @@
                 if (err !== null)
                     console.log("Error caching Dynasty data.");
             })
-            data.title = ds_make_title(data);
+            data.title = ds_make_title(data, info);
 
             callback(null, [data]);
         };
@@ -1005,8 +1041,12 @@
                     tag: "DS",
                 };
 
-                if (xlinks_api.config.dynasty.show_icon)
-                    url_info.icon = "site_DS";
+                if (xlinks_api.config.dynasty.show_icon) {
+                    if (xlinks_api.config.dynasty.tag_filter.trim() !== "")
+                        url_info.icon = "modifyme-"+url_info.id;
+                    else
+                        url_info.icon = "site_DS";
+                }
 
                 callback(null, url_info);
             }
@@ -1017,14 +1057,14 @@
         var ds_ch_url_info_to_data = function (url_info, callback) {
             var dsdata = xlinks_api.cache_get(url_info.id, null);
             if (dsdata !== null) {
-                dsdata.title = ds_make_title(dsdata);
+                dsdata.title = ds_make_title(dsdata, url_info);
                 callback(null, dsdata);
             }
             else
                 xlinks_api.request("dynasty", "chapter", url_info.id, url_info, callback);
         };
 
-        var ds_make_title = function (data) {
+        var ds_make_title = function (data, url_info) {
             var title = data.base_title;
             if (xlinks_api.config.dynasty.show_author && data.authors.length > 0)
                 title = "[" + data.authors.join(", ") + "] " + title;
@@ -1034,6 +1074,24 @@
                 title += " [" + data.groups.join(', ') + "]";
             }
             title = title.replace(/\s+/g, " ");
+
+            // modify the icon if there's a tag filter defined
+            if (xlinks_api.config.dynasty.tag_filter !== "") {
+                // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
+                var tag_array = xlinks_api.config.dynasty.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+                var filter_match = false;
+
+                for (let i = 0; i < data.tags.length; i++) {
+                    if (tag_array.indexOf(data.tags[i].toLowerCase()) >= 0) {
+                        filter_match = true;
+                        break;
+                    }
+                }
+
+                // console.log([title, data.tags, tag_array, filter_match])
+                modify_icon(url_info.id, "dynasty", filter_match);
+            }
+
             return title;
         }
 
@@ -1118,7 +1176,13 @@
                             //name,      default, title,               description,                             descriptor?
                             ["mangadex", true,    "mangadex.org",      "Enable link processing for mangadex.org"],
                             ["dynasty",  true,    "dynasty-scans.com", "Enable link processing for dynasty-scans.com"],
-                            // descriptor: { type: string, options: <array of [string:value, string:label, string:description]> }
+                            // descriptor: { type: string, options: <array of [string:value, string:label, string:description, {type: ...}]> }
+                            //  the {type: ...} is optional and can take the following values: "checkbox", "select", "textbox", "textarea", "button"
+                            //      {type: "checkbox"}
+                            //      {type: "select", options: [[value, label_text, description?], [value, label_text, description?], ...]}
+                            //      {type: "textbox"} or {type: "textbox", get: (v) => {...}, set: (v) => {...}}
+                            //      {type: "textarea"}
+                            //      {type: "button", text: "Clear", on_change: on_cache_clear_click}
                             // for pre-existing vars: [ "name" ]
                         ],
                         mangadex: [
@@ -1142,6 +1206,33 @@
                             ["show_author", true, "Show author name", ""],
                             ["show_pages", true, "Show page count", ""],
                             ["show_group", false, "Show group name", ""],
+                            ["tag_filter", "", "Tag filter", "(https://dynasty-scans.com/tags) List of tags separated by a comma; e.g. \"long strip, het, elf\"",
+                                {type: "textbox"}
+                            ],
+                            ["tag_filter_style", "invert", "How to modify the icon on a tag filter match", "Only works if you show an icon instead of a [DS] tag",
+                                {
+                                    type: "select",
+                                    options: [
+                                        // [ value, label_text, description? ]
+                                        ["none",            "No change",        ""],
+                                        ["rotate180",       "Rotate 180°",      "transform: rotate(180deg)"],
+                                        ["long_strip",      "Long strip",       "transform: scaleX(0.5)"],
+                                        ["invert",          "Invert colors",    "filter: invert(1)"],
+                                        ["grayscale",       "Grayscale",        "filter: grayscale(1)"],
+                                        ["opacity50",       "Opacity 50%",      "filter: opacity(0.5)"],
+                                        ["drop_shadow",     "Drop shadow",      "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"],
+                                        ["sepia",           "Sepia",            "filter: sepia(1)"],
+                                        ["blur1.5",         "Blur",             "filter: blur(1.5px)"],
+                                        ["hue_rotate90",    "Hue rotate 90°",   "filter: hue-rotate(90deg)"],
+                                        ["hue_rotate180",   "Hue rotate 180°",  "filter: hue-rotate(180deg)"],
+                                        ["hue_rotate270",   "Hue rotate 270°",  "filter: hue-rotate(270deg)"],
+                                        ["custom",          "Custom CSS",       "<Your CSS here!>"],
+                                    ]
+                                }
+                            ],
+                            ["tag_filter_style_custom", "", "Custom CSS for matched tag filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
+                                {type: "textbox"}
+                            ],
                         ]
                     },
                     request_apis: [{
