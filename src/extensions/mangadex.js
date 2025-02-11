@@ -102,7 +102,7 @@
                 return;
             if (xlinks_api.config.mangadex.show_author) {
                 let has_authors = 0;
-                for (var i = this.data.authors.length - 1; i >= 0; i--) {
+                for (let i = this.data.authors.length - 1; i >= 0; i--) {
                     if (this.data.author_ids.indexOf(this.data.authors[i].id) != -1)
                         has_authors++;
                 }
@@ -111,7 +111,7 @@
             }
             if (xlinks_api.config.mangadex.show_artist) {
                 let has_artists = 0;
-                for (var i = this.data.authors.length - 1; i >= 0; i--) {
+                for (let i = this.data.authors.length - 1; i >= 0; i--) {
                     if (this.data.artist_ids.indexOf(this.data.authors[i].id) != -1)
                         has_artists++;
                 }
@@ -175,7 +175,7 @@
             if (xlinks_api.config.mangadex.custom_title) {
                 var title_order = xlinks_api.config.mangadex.title_search_order.replace(/\s+/g, "").split(",");
                 var title_found = false;
-                for (var i = 0; i < title_order.length; i++) {
+                for (let i = 0; i < title_order.length; i++) {
                     if (title_found) break;
                     lcode = title_order[i];
                     lcode = lcode.replace(/orig/i, data.manga.originalLanguage);
@@ -235,7 +235,7 @@
             // url_info.icon was set to a placeholder if use_flags is set
             // this replaces it with the real flag icon after the manga data was acquired
             nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+ch_id+"]");
-            for (var i = 0; i < nodes.length; i++) {
+            for (let i = 0; i < nodes.length; i++) {
                 nodes[i].setAttribute("data-xl-site-tag-icon", flag);
             }
         }
@@ -263,7 +263,7 @@
             let req_url = "https://api.mangadex.org/" + info.type + "/" + info.id;
             if (info.includes !== undefined && info.includes.length > 0) {
                 req_url += "?";
-                for (var i = 0; i < info.includes.length; i++) {
+                for (let i = 0; i < info.includes.length; i++) {
                     req_url += "includes[]=" + info.includes[i] + "&";
                 }
                 req_url = req_url.replace(/&$/, "");
@@ -402,7 +402,7 @@
             var has_artists = 0;
             var artist_num = 0;
 
-            for (var i = 0; i < data.relationships.length; i++) {
+            for (let i = 0; i < data.relationships.length; i++) {
                 if (data.relationships[i].type == "author")
                     author_num++;
                 if (data.relationships[i].type == "artist")
@@ -414,7 +414,7 @@
             var requested_authors = Array();
             var added_authors = Array();
 
-            for (var i = 0; i < data.relationships.length; i++) {
+            for (let i = 0; i < data.relationships.length; i++) {
                 switch (data.relationships[i].type) {
                     case "author": {
                         has_authors++;
@@ -636,14 +636,14 @@
             var group_num = 0;
 
             if (data.relationships !== undefined) {
-                for (var i = 0; i < data.relationships.length; i++) {
+                for (let i = 0; i < data.relationships.length; i++) {
                     if (data.relationships[i].type == "scanlation_group")
                         group_num++;
                 }
                 if (xlinks_api.config.mangadex.show_group)
                     aggregator.group_num = group_num;
 
-                for (var i = 0; i < data.relationships.length; i++) {
+                for (let i = 0; i < data.relationships.length; i++) {
                     switch (data.relationships[i].type) {
                         case "scanlation_group": {
                             has_groups++;
@@ -724,7 +724,7 @@
             // [[id, name], [id, name], ...]
             var group_data = Array();
             if (aggregators[url_info.id].data.groups.length > 0) {
-                for (var i = 0; i < aggregators[url_info.id].data.groups.length; i++) {
+                for (let i = 0; i < aggregators[url_info.id].data.groups.length; i++) {
                     group_data.push([aggregators[url_info.id].data.groups[i].id, aggregators[url_info.id].data.groups[i].name]);
                 }
             }
@@ -733,7 +733,7 @@
             var author_data = Array();
             var added_author_ids = Array();
             if (aggregators[url_info.id].data.authors.length > 0) {
-                for (var i = 0; i < aggregators[url_info.id].data.authors.length; i++) {
+                for (let i = 0; i < aggregators[url_info.id].data.authors.length; i++) {
                     if (added_author_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1) continue;
                     let roles = Array();
                     if (aggregators[url_info.id].data.author_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1)
@@ -755,7 +755,7 @@
                 else
                     mangadata = xlinks_api.cache_get("manga_" + aggregators[url_info.id].data.manga.id);
                 if (mangadata !== null && mangadata.relationships) {
-                    for (var i = 0; i < mangadata.relationships.length; i++) {
+                    for (let i = 0; i < mangadata.relationships.length; i++) {
                         if (mangadata.relationships[i].type != "author" && mangadata.relationships[i].type != "artist") continue;
                         author_list.push(mangadata.relationships[i])
                         if (mangadata.relationships[i].type == "author")
@@ -763,7 +763,7 @@
                         if (mangadata.relationships[i].type == "artist")
                             artist_ids.push(mangadata.relationships[i].id)
                     }
-                    for (var i = 0; i < author_list.length; i++) {
+                    for (let i = 0; i < author_list.length; i++) {
                         if (added_author_ids.indexOf(author_list[i].id) != -1) continue;
                         let roles = Array();
                         if (author_ids.indexOf(author_list[i].id) != -1)
@@ -815,7 +815,7 @@
                     mangadata = {tags: []};
             }
 
-            for (var i = 0; i < mangadata.tags.length; i++) {
+            for (let i = 0; i < mangadata.tags.length; i++) {
                 let tag_id = mangadata.tags[i].id;
                 let tag_group = mangadata.tags[i].attributes.group;
                 tag_group = tag_group.charAt(0).toUpperCase() + tag_group.substr(1);
@@ -834,7 +834,7 @@
             }
 
             let tag_group_keys = Object.keys(tag_groups);
-            for (var i = 0; i < tag_group_keys.length; i++) {
+            for (let i = 0; i < tag_group_keys.length; i++) {
                 tag_data = tag_data.concat(tag_groups[tag_group_keys[i]]);
             }
 
@@ -844,7 +844,7 @@
             var last_descriptor = "";
 
             urls.push(["Title:", base_url + "title/" + title_data[0], title_data[1]]);
-            for (var i = 0; i < group_data.length; i++) {
+            for (let i = 0; i < group_data.length; i++) {
                 let descriptor = "Group:";
                 if (last_descriptor == descriptor)
                     descriptor = "";
@@ -852,7 +852,7 @@
                     last_descriptor = descriptor
                 urls.push([descriptor, base_url + "group/" + group_data[i][0], group_data[i][1]]);
             }
-            for (var i = 0; i < author_data.length; i++) {
+            for (let i = 0; i < author_data.length; i++) {
                 let descriptor = author_data[i][2].join(", ") + ":";
                 if (last_descriptor == descriptor)
                     descriptor = "";
@@ -860,7 +860,7 @@
                     last_descriptor = descriptor
                 urls.push([descriptor, base_url + "author/" + author_data[i][0], author_data[i][1]]);
             }
-            for (var i = 0; i < tag_data.length; i++) {
+            for (let i = 0; i < tag_data.length; i++) {
                 let descriptor = tag_data[i][2] + ":";
                 if (last_descriptor == descriptor)
                     descriptor = "";
@@ -939,7 +939,7 @@
 
             // authors
             if ((nn = $$("#chapter-title > a", html)).length > 0) {
-                for (var i = 0; i < nn.length; i++) {
+                for (let i = 0; i < nn.length; i++) {
                     data.authors.push(nn[i].textContent.trim());
                     data.links.authors[nn[i].textContent.trim()] = nn[i].getAttribute("href");
                 }
@@ -950,7 +950,7 @@
 
             // volumes
             if ((nn = $$("span.volumes > a", html)).length > 0) {
-                for (var i = 0; i < nn.length; i++) {
+                for (let i = 0; i < nn.length; i++) {
                     data.volumes.push(nn[i].textContent.trim());
                     data.links.volumes[nn[i].textContent.trim()] = nn[i].getAttribute("href");
                 }
@@ -958,7 +958,7 @@
 
             // groups
             if ((nn = $$("span.scanlators > a", html)).length > 0) {
-                for (var i = 0; i < nn.length; i++) {
+                for (let i = 0; i < nn.length; i++) {
                     if (nn[i].textContent.trim().length > 0) {
                         data.groups.push(nn[i].textContent.trim());
                         data.links.groups[nn[i].textContent.trim()] = nn[i].getAttribute("href");
@@ -979,7 +979,7 @@
 
             // tags
             if ((nn = $$("span.tags > a.label", html)).length > 0) {
-                for (var i = 0; i < nn.length; i++) {
+                for (let i = 0; i < nn.length; i++) {
                     data.tags.push(nn[i].textContent.trim());
                     data.links.tags[nn[i].textContent.trim()] = nn[i].getAttribute("href");
                 }
