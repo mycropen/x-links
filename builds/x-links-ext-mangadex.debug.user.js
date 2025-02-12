@@ -2,7 +2,7 @@
 // @name        X-links Extension - Mangadex (debug)
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.3.2.-0xDB
+// @version     1.4.-0xDB
 // @description Linkify and format Mangadex & Dynasty-Scans links
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
@@ -1487,7 +1487,7 @@
                 return;
             if (xlinks_api.config.mangadex.show_author) {
                 let has_authors = 0;
-                for (var i = this.data.authors.length - 1; i >= 0; i--) {
+                for (let i = this.data.authors.length - 1; i >= 0; i--) {
                     if (this.data.author_ids.indexOf(this.data.authors[i].id) != -1)
                         has_authors++;
                 }
@@ -1496,7 +1496,7 @@
             }
             if (xlinks_api.config.mangadex.show_artist) {
                 let has_artists = 0;
-                for (var i = this.data.authors.length - 1; i >= 0; i--) {
+                for (let i = this.data.authors.length - 1; i >= 0; i--) {
                     if (this.data.artist_ids.indexOf(this.data.authors[i].id) != -1)
                         has_artists++;
                 }
@@ -1560,7 +1560,7 @@
             if (xlinks_api.config.mangadex.custom_title) {
                 var title_order = xlinks_api.config.mangadex.title_search_order.replace(/\s+/g, "").split(",");
                 var title_found = false;
-                for (var i = 0; i < title_order.length; i++) {
+                for (let i = 0; i < title_order.length; i++) {
                     if (title_found) break;
                     lcode = title_order[i];
                     lcode = lcode.replace(/orig/i, data.manga.originalLanguage);
@@ -1620,10 +1620,46 @@
             // url_info.icon was set to a placeholder if use_flags is set
             // this replaces it with the real flag icon after the manga data was acquired
             nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+ch_id+"]");
-            for (var i = 0; i < nodes.length; i++) {
+            for (let i = 0; i < nodes.length; i++) {
                 nodes[i].setAttribute("data-xl-site-tag-icon", flag);
             }
         }._w(82)
+
+        var modify_icon = function (ch_id, site, apply_style) {
+            // applies a style to the site icon
+            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=modifyme-"+ch_id+"]");
+            if (site === "dynasty") {
+                var style_str = "";
+
+                if (apply_style) {
+                    switch (xlinks_api.config.dynasty.tag_filter_style) {
+                        case "none":          style_str = ""; break;
+                        case "rotate180":     style_str = "transform: rotate(180deg)"; break;
+                        case "long_strip":    style_str = "transform: scaleX(0.5)"; break;
+                        case "invert":        style_str = "filter: invert(1)"; break;
+                        case "grayscale":     style_str = "filter: grayscale(1)"; break;
+                        case "opacity50":     style_str = "filter: opacity(0.5)"; break;
+                        case "drop_shadow":   style_str = "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"; break;
+                        case "sepia":         style_str = "filter: sepia(1)"; break;
+                        case "blur1.5":       style_str = "filter: blur(1.5px)"; break;
+                        case "hue_rotate90":  style_str = "filter: hue-rotate(90deg)"; break;
+                        case "hue_rotate180": style_str = "filter: hue-rotate(180deg)"; break;
+                        case "hue_rotate270": style_str = "filter: hue-rotate(270deg)"; break;
+                        case "custom":        style_str = xlinks_api.config.dynasty.tag_filter_style_custom.trim(); break;
+                    }
+                }
+                // console.log([ch_id, apply_style, xlinks_api.config.dynasty.tag_filter_style, style_str]);
+
+                for (let i = 0; i < nodes.length; i++) {
+                    let node_style = nodes[i].getAttribute("style");
+                    nodes[i].setAttribute("data-xl-site-tag-icon", "site_DS");
+                    if (node_style === undefined || node_style === null)
+                        nodes[i].setAttribute("style", style_str) 
+                    else
+                        nodes[i].setAttribute("style", [node_style.trim(";"), style_str].join(";")) 
+                }
+            }
+        }._w(83)
 
 
         // functions that interact with the API
@@ -1631,13 +1667,13 @@
         var md_get_data = function (info, callback) {
             var data = xlinks_api.cache_get(info.id);
             callback(null, data);
-        }._w(83);
+        }._w(84);
         var md_set_data = function (data, info, callback) {
             var lifetime = 7 * xlinks_api.ttl_1_day;
             if (info.lifetime !== undefined) lifetime = info.lifetime;
             xlinks_api.cache_set(info.id, data, lifetime);
             callback(null);
-        }._w(84);
+        }._w(85);
 
         var md_generic_api_xhr = function (callback) {
             var info = this.infos[0];
@@ -1648,7 +1684,7 @@
             let req_url = "https://api.mangadex.org/" + info.type + "/" + info.id;
             if (info.includes !== undefined && info.includes.length > 0) {
                 req_url += "?";
-                for (var i = 0; i < info.includes.length; i++) {
+                for (let i = 0; i < info.includes.length; i++) {
                     req_url += "includes[]=" + info.includes[i] + "&";
                 }
                 req_url = req_url.replace(/&$/, "");
@@ -1661,7 +1697,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(85);
+        }._w(86);
         var md_generic_parse_response = function (xhr, callback) {
             // split xhr.context by '_' and forward to the actual parse_response function
             if (xhr.context) {
@@ -1679,7 +1715,7 @@
             }
             else
                 callback("Invalid response: No context.");
-        }._w(86);
+        }._w(87);
 
         var md_chapter_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -1691,7 +1727,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(87);
+        }._w(88);
         var md_chapter_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
@@ -1719,7 +1755,7 @@
             // console.log(["parse_ch_response", jsdata.data, data]);
 
             callback(null, [data]);
-        }._w(88);
+        }._w(89);
 
         var md_manga_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -1731,7 +1767,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(89);
+        }._w(90);
         var md_manga_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
@@ -1773,21 +1809,21 @@
                     // flag not implemented
                     replace_icon(ctx[1], 'site_MD');
 
-            if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
-                get_other_manga_data(ctx[1], data, aggregator);
+            // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
+            get_other_manga_data(ctx[1], data, aggregator);
 
             xlinks_api.cache_set("manga_" + jsdata.data.id, data, 7 * xlinks_api.ttl_1_day);
             aggregator.add_data("manga", data);
 
             callback(null, [data]);
-        }._w(90);
+        }._w(91);
         var get_other_manga_data = function (context, data, aggregator) {
             var has_authors = 0;
             var author_num = 0;
             var has_artists = 0;
             var artist_num = 0;
 
-            for (var i = 0; i < data.relationships.length; i++) {
+            for (let i = 0; i < data.relationships.length; i++) {
                 if (data.relationships[i].type == "author")
                     author_num++;
                 if (data.relationships[i].type == "artist")
@@ -1799,7 +1835,7 @@
             var requested_authors = Array();
             var added_authors = Array();
 
-            for (var i = 0; i < data.relationships.length; i++) {
+            for (let i = 0; i < data.relationships.length; i++) {
                 switch (data.relationships[i].type) {
                     case "author": {
                         has_authors++;
@@ -1885,7 +1921,7 @@
                 aggregator.artist_num = has_artists;
                 aggregator.validate();
             }
-        }._w(91);
+        }._w(92);
 
         var md_group_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -1897,7 +1933,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(92);
+        }._w(93);
         var md_group_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
@@ -1928,7 +1964,7 @@
             aggregators[ctx[1]].add_data("group", data);
 
             callback(null, [data]);
-        }._w(93);
+        }._w(94);
         
         var md_author_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
@@ -1960,7 +1996,7 @@
             aggregators[ctx[1]].add_data("author", data);
 
             callback(null, [data]);
-        }._w(94);
+        }._w(95);
 
         var md_ch_url_get_info = function (url, callback) {
             var m = /(https?:\/*)?(?:www\.)?mangadex\.org\/chapter\/([a-z0-9\-]+)/i.exec(url),
@@ -1975,8 +2011,10 @@
                     includes: ["scanlation_group"],
                 };
 
-                if (!xlinks_api.config.mangadex.show_author && !xlinks_api.config.mangadex.show_artist)
-                    url_info.includes.push("manga");
+                // If we don't need the author or artist, we only need to make one API call
+                // This will populate the chapter's relationship attributes with *some* manga information
+                // if (!xlinks_api.config.mangadex.show_author && !xlinks_api.config.mangadex.show_artist)
+                //     url_info.includes.push("manga");
 
                 // hack a way to use the site icon as a language flag
                 if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags)
@@ -1989,7 +2027,7 @@
             else {
                 callback(null, null);
             }
-        }._w(95);
+        }._w(96);
         var md_ch_url_info_to_data = function (url_info, callback) {
             // make chapter api call with its id as context
             // the parse_response functions will then add their data to the aggregator
@@ -2012,21 +2050,21 @@
                     }
                 });
             }
-        }._w(96);
+        }._w(97);
         var get_other_ch_data = function (url_info, data, aggregator) {
             var has_manga = false;
             var has_groups = 0;
             var group_num = 0;
 
             if (data.relationships !== undefined) {
-                for (var i = 0; i < data.relationships.length; i++) {
+                for (let i = 0; i < data.relationships.length; i++) {
                     if (data.relationships[i].type == "scanlation_group")
                         group_num++;
                 }
                 if (xlinks_api.config.mangadex.show_group)
                     aggregator.group_num = group_num;
 
-                for (var i = 0; i < data.relationships.length; i++) {
+                for (let i = 0; i < data.relationships.length; i++) {
                     switch (data.relationships[i].type) {
                         case "scanlation_group": {
                             has_groups++;
@@ -2056,47 +2094,24 @@
 
                         case "manga": {
                             has_manga = true;
-                            if (data.relationships[i].attributes !== undefined && !xlinks_api.config.mangadex.show_author && !xlinks_api.config.mangadex.show_artist) {
-                                var mangadata = {
-                                    id:               data.relationships[i].id || null,
-                                    title:            data.relationships[i].attributes.title || null,
-                                    altTitles:        data.relationships[i].attributes.altTitles || null,
-                                    descrition:       data.relationships[i].attributes.descrition || null,
-                                    originalLanguage: data.relationships[i].attributes.originalLanguage || null,
-                                    state:            data.relationships[i].attributes.state || null,
-                                    status:           data.relationships[i].attributes.status || null,
-                                    tags:             data.relationships[i].attributes.tags || null,
-                                    relationships:    data.relationships[i].relationships || null,
-                                };
-
-                                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags)
-                                    if (lang_to_flag[mangadata.originalLanguage] !== undefined)
-                                        replace_icon(data.id, lang_to_flag[mangadata.originalLanguage]);
-                                    else
-                                        // flag not implemented
-                                        replace_icon(data.id, 'site_MD');
-                                aggregator.add_data("manga", mangadata);
-                                // do not cache this data because it cannot have author/artist entries
+                            // (v1.4) new strategy: always make a manga API call to so we have the author/artist info ready for the actions pane
+                            let manga_url_info = {
+                                id: data.relationships[i].id,
+                                context: "manga_" + data.id,
+                                type: "manga",
+                                includes: ["author", "artist"],
+                            };
+                            
+                            let cached_mangadata = xlinks_api.cache_get("manga_" + manga_url_info.id);
+                            if (cached_mangadata !== null && cached_mangadata.relationships) {
+                                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[cached_mangadata.originalLanguage] !== undefined)
+                                    replace_icon(data.id, lang_to_flag[cached_mangadata.originalLanguage]);
+                                // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
+                                get_other_manga_data(data.id, cached_mangadata, aggregator);
+                                aggregator.add_data("manga", cached_mangadata);
                             }
-                            else {
-                                let manga_url_info = {
-                                    id: data.relationships[i].id,
-                                    context: "manga_" + data.id,
-                                    type: "manga",
-                                    includes: ["author", "artist"],
-                                };
-                                
-                                let cached_mangadata = xlinks_api.cache_get("manga_" + manga_url_info.id);
-                                if (cached_mangadata !== null && cached_mangadata.relationships) {
-                                    if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[cached_mangadata.originalLanguage] !== undefined)
-                                        replace_icon(data.id, lang_to_flag[cached_mangadata.originalLanguage]);
-                                    if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
-                                        get_other_manga_data(data.id, cached_mangadata, aggregator);
-                                    aggregator.add_data("manga", cached_mangadata);
-                                }
-                                else
-                                    xlinks_api.request("mangadex", "generic", manga_url_info.id, manga_url_info, (err, data) => {});
-                            }
+                            else
+                                xlinks_api.request("mangadex", "generic", manga_url_info.id, manga_url_info, (err, data) => {});
                             break;
                         }
                     }
@@ -2119,7 +2134,7 @@
                 aggregator.group_num = has_groups;
                 aggregator.validate();
             }
-        }._w(97)
+        }._w(98)
 
         var md_create_actions = function (data, url_info, callback, retry = false) {
             // console.log(["md_create_actions", data, url_info, callback, aggregators[url_info.id]]);
@@ -2130,7 +2145,7 @@
             // [[id, name], [id, name], ...]
             var group_data = Array();
             if (aggregators[url_info.id].data.groups.length > 0) {
-                for (var i = 0; i < aggregators[url_info.id].data.groups.length; i++) {
+                for (let i = 0; i < aggregators[url_info.id].data.groups.length; i++) {
                     group_data.push([aggregators[url_info.id].data.groups[i].id, aggregators[url_info.id].data.groups[i].name]);
                 }
             }
@@ -2139,7 +2154,7 @@
             var author_data = Array();
             var added_author_ids = Array();
             if (aggregators[url_info.id].data.authors.length > 0) {
-                for (var i = 0; i < aggregators[url_info.id].data.authors.length; i++) {
+                for (let i = 0; i < aggregators[url_info.id].data.authors.length; i++) {
                     if (added_author_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1) continue;
                     let roles = Array();
                     if (aggregators[url_info.id].data.author_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1)
@@ -2161,7 +2176,7 @@
                 else
                     mangadata = xlinks_api.cache_get("manga_" + aggregators[url_info.id].data.manga.id);
                 if (mangadata !== null && mangadata.relationships) {
-                    for (var i = 0; i < mangadata.relationships.length; i++) {
+                    for (let i = 0; i < mangadata.relationships.length; i++) {
                         if (mangadata.relationships[i].type != "author" && mangadata.relationships[i].type != "artist") continue;
                         author_list.push(mangadata.relationships[i])
                         if (mangadata.relationships[i].type == "author")
@@ -2169,7 +2184,7 @@
                         if (mangadata.relationships[i].type == "artist")
                             artist_ids.push(mangadata.relationships[i].id)
                     }
-                    for (var i = 0; i < author_list.length; i++) {
+                    for (let i = 0; i < author_list.length; i++) {
                         if (added_author_ids.indexOf(author_list[i].id) != -1) continue;
                         let roles = Array();
                         if (author_ids.indexOf(author_list[i].id) != -1)
@@ -2221,7 +2236,7 @@
                     mangadata = {tags: []};
             }
 
-            for (var i = 0; i < mangadata.tags.length; i++) {
+            for (let i = 0; i < mangadata.tags.length; i++) {
                 let tag_id = mangadata.tags[i].id;
                 let tag_group = mangadata.tags[i].attributes.group;
                 tag_group = tag_group.charAt(0).toUpperCase() + tag_group.substr(1);
@@ -2240,7 +2255,7 @@
             }
 
             let tag_group_keys = Object.keys(tag_groups);
-            for (var i = 0; i < tag_group_keys.length; i++) {
+            for (let i = 0; i < tag_group_keys.length; i++) {
                 tag_data = tag_data.concat(tag_groups[tag_group_keys[i]]);
             }
 
@@ -2250,7 +2265,7 @@
             var last_descriptor = "";
 
             urls.push(["Title:", base_url + "title/" + title_data[0], title_data[1]]);
-            for (var i = 0; i < group_data.length; i++) {
+            for (let i = 0; i < group_data.length; i++) {
                 let descriptor = "Group:";
                 if (last_descriptor == descriptor)
                     descriptor = "";
@@ -2258,7 +2273,7 @@
                     last_descriptor = descriptor
                 urls.push([descriptor, base_url + "group/" + group_data[i][0], group_data[i][1]]);
             }
-            for (var i = 0; i < author_data.length; i++) {
+            for (let i = 0; i < author_data.length; i++) {
                 let descriptor = author_data[i][2].join(", ") + ":";
                 if (last_descriptor == descriptor)
                     descriptor = "";
@@ -2266,7 +2281,7 @@
                     last_descriptor = descriptor
                 urls.push([descriptor, base_url + "author/" + author_data[i][0], author_data[i][1]]);
             }
-            for (var i = 0; i < tag_data.length; i++) {
+            for (let i = 0; i < tag_data.length; i++) {
                 let descriptor = tag_data[i][2] + ":";
                 if (last_descriptor == descriptor)
                     descriptor = "";
@@ -2276,19 +2291,19 @@
             }
 
             callback(null, urls);
-        }._w(98);
+        }._w(99);
 
         // Dynasty-Scans
         var ds_get_data = function (info, callback) {
             var data = xlinks_api.cache_get(info.id);
             callback(null, data);
-        }._w(99);
+        }._w(100);
         var ds_set_data = function (data, info, callback) {
             var lifetime = 7 * xlinks_api.ttl_1_day;
             if (info.lifetime !== undefined) lifetime = info.lifetime;
             xlinks_api.cache_set(info.id, data, lifetime);
             callback(null);
-        }._w(100);
+        }._w(101);
 
         var ds_chapter_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -2296,7 +2311,7 @@
                 method: "GET",
                 url: "https://dynasty-scans.com/chapters/" + info.id,
             });
-        }._w(101);
+        }._w(102);
         var ds_chapter_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
@@ -2345,7 +2360,7 @@
 
             // authors
             if ((nn = $$("#chapter-title > a", html)).length > 0) {
-                for (var i = 0; i < nn.length; i++) {
+                for (let i = 0; i < nn.length; i++) {
                     data.authors.push(nn[i].textContent.trim());
                     data.links.authors[nn[i].textContent.trim()] = nn[i].getAttribute("href");
                 }
@@ -2356,7 +2371,7 @@
 
             // volumes
             if ((nn = $$("span.volumes > a", html)).length > 0) {
-                for (var i = 0; i < nn.length; i++) {
+                for (let i = 0; i < nn.length; i++) {
                     data.volumes.push(nn[i].textContent.trim());
                     data.links.volumes[nn[i].textContent.trim()] = nn[i].getAttribute("href");
                 }
@@ -2364,7 +2379,7 @@
 
             // groups
             if ((nn = $$("span.scanlators > a", html)).length > 0) {
-                for (var i = 0; i < nn.length; i++) {
+                for (let i = 0; i < nn.length; i++) {
                     if (nn[i].textContent.trim().length > 0) {
                         data.groups.push(nn[i].textContent.trim());
                         data.links.groups[nn[i].textContent.trim()] = nn[i].getAttribute("href");
@@ -2385,7 +2400,7 @@
 
             // tags
             if ((nn = $$("span.tags > a.label", html)).length > 0) {
-                for (var i = 0; i < nn.length; i++) {
+                for (let i = 0; i < nn.length; i++) {
                     data.tags.push(nn[i].textContent.trim());
                     data.links.tags[nn[i].textContent.trim()] = nn[i].getAttribute("href");
                 }
@@ -2395,10 +2410,10 @@
                 if (err !== null)
                     console.log("Error caching Dynasty data.");
             })
-            data.title = ds_make_title(data);
+            data.title = ds_make_title(data, info);
 
             callback(null, [data]);
-        }._w(102);
+        }._w(103);
 
         var ds_ch_url_get_info = function (url, callback) {
             var m = /(https?:\/*)?(?:www\.)?dynasty-scans\.com\/chapters\/([^#]+)/i.exec(url),
@@ -2411,26 +2426,30 @@
                     tag: "DS",
                 };
 
-                if (xlinks_api.config.dynasty.show_icon)
-                    url_info.icon = "site_DS";
+                if (xlinks_api.config.dynasty.show_icon) {
+                    if (xlinks_api.config.dynasty.tag_filter.trim() !== "")
+                        url_info.icon = "modifyme-"+url_info.id;
+                    else
+                        url_info.icon = "site_DS";
+                }
 
                 callback(null, url_info);
             }
             else {
                 callback(null, null);
             }
-        }._w(103);
+        }._w(104);
         var ds_ch_url_info_to_data = function (url_info, callback) {
             var dsdata = xlinks_api.cache_get(url_info.id, null);
             if (dsdata !== null) {
-                dsdata.title = ds_make_title(dsdata);
+                dsdata.title = ds_make_title(dsdata, url_info);
                 callback(null, dsdata);
             }
             else
                 xlinks_api.request("dynasty", "chapter", url_info.id, url_info, callback);
-        }._w(104);
+        }._w(105);
 
-        var ds_make_title = function (data) {
+        var ds_make_title = function (data, url_info) {
             var title = data.base_title;
             if (xlinks_api.config.dynasty.show_author && data.authors.length > 0)
                 title = "[" + data.authors.join(", ") + "] " + title;
@@ -2440,8 +2459,26 @@
                 title += " [" + data.groups.join(', ') + "]";
             }
             title = title.replace(/\s+/g, " ");
+
+            // modify the icon if there's a tag filter defined
+            if (xlinks_api.config.dynasty.tag_filter !== "") {
+                // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
+                var tag_array = xlinks_api.config.dynasty.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+                var filter_match = false;
+
+                for (let i = 0; i < data.tags.length; i++) {
+                    if (tag_array.indexOf(data.tags[i].toLowerCase()) >= 0) {
+                        filter_match = true;
+                        break;
+                    }
+                }
+
+                // console.log([title, data.tags, tag_array, filter_match])
+                modify_icon(url_info.id, "dynasty", filter_match);
+            }
+
             return title;
-        }._w(105)
+        }._w(106)
 
         var ds_create_actions = function (data, info, callback, retry = false) {
             // console.log(["ds_create_actions", data, info, callback]);
@@ -2504,14 +2541,14 @@
             }
 
             callback(null, urls);
-        }._w(106);
+        }._w(107);
 
         xlinks_api.init({
             namespace: "mangadex",
             name: "Mangadex & Dynasty links",
             author: "mycropen",
             description: "Linkify and format Mangadex & Dynasty-Scans links",
-            version: [1,3,2,-0xDB],
+            version: [1,4,-0xDB],
             registrations: 1,
             main: main_fn
         }, function (err) {
@@ -2524,7 +2561,13 @@
                             //name,      default, title,               description,                             descriptor?
                             ["mangadex", true,    "mangadex.org",      "Enable link processing for mangadex.org"],
                             ["dynasty",  true,    "dynasty-scans.com", "Enable link processing for dynasty-scans.com"],
-                            // descriptor: { type: string, options: <array of [string:value, string:label, string:description]> }
+                            // descriptor: { type: string, options: <array of [string:value, string:label, string:description, {type: ...}]> }
+                            //  the {type: ...} is optional and can take the following values: "checkbox", "select", "textbox", "textarea", "button"
+                            //      {type: "checkbox"}
+                            //      {type: "select", options: [[value, label_text, description?], [value, label_text, description?], ...]}
+                            //      {type: "textbox"} or {type: "textbox", get: (v) => {...}, set: (v) => {...}}
+                            //      {type: "textarea"}
+                            //      {type: "button", text: "Clear", on_change: on_cache_clear_click}
                             // for pre-existing vars: [ "name" ]
                         ],
                         mangadex: [
@@ -2548,6 +2591,33 @@
                             ["show_author", true, "Show author name", ""],
                             ["show_pages", true, "Show page count", ""],
                             ["show_group", false, "Show group name", ""],
+                            ["tag_filter", "", "Tag filter", "(https://dynasty-scans.com/tags) List of tags separated by a comma; e.g. \"long strip, het, elf\"",
+                                {type: "textbox"}
+                            ],
+                            ["tag_filter_style", "invert", "How to modify the icon on a tag filter match", "Only works if you show an icon instead of a [DS] tag",
+                                {
+                                    type: "select",
+                                    options: [
+                                        // [ value, label_text, description? ]
+                                        ["none",            "No change",        ""],
+                                        ["rotate180",       "Rotate 180°",      "transform: rotate(180deg)"],
+                                        ["long_strip",      "Long strip",       "transform: scaleX(0.5)"],
+                                        ["invert",          "Invert colors",    "filter: invert(1)"],
+                                        ["grayscale",       "Grayscale",        "filter: grayscale(1)"],
+                                        ["opacity50",       "Opacity 50%",      "filter: opacity(0.5)"],
+                                        ["drop_shadow",     "Drop shadow",      "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"],
+                                        ["sepia",           "Sepia",            "filter: sepia(1)"],
+                                        ["blur1.5",         "Blur",             "filter: blur(1.5px)"],
+                                        ["hue_rotate90",    "Hue rotate 90°",   "filter: hue-rotate(90deg)"],
+                                        ["hue_rotate180",   "Hue rotate 180°",  "filter: hue-rotate(180deg)"],
+                                        ["hue_rotate270",   "Hue rotate 270°",  "filter: hue-rotate(270deg)"],
+                                        ["custom",          "Custom CSS",       "<Your CSS here!>"],
+                                    ]
+                                }
+                            ],
+                            ["tag_filter_style_custom", "", "Custom CSS for matched tag filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
+                                {type: "textbox"}
+                            ],
                         ]
                     },
                     request_apis: [{
@@ -2604,7 +2674,7 @@
                     }]
                 });
             }
-        }._w(107));
+        }._w(108));
     }._w(67);
     main(xlinks_api);
 })();
