@@ -18,6 +18,11 @@ To quickly install, here are the links to the different userscript versions:
   * <i>It <b>will not</b> overwrite the standard version</i>
   * <i>It <b>will not</b> automatically update (probably)</i>
 
+### Mangadex & Dynasty extension
+
+After installing the main x-links userscript, you can install any of the extensions as well,
+including [x-links-ext-mangadex.user.js](https://raw.githubusercontent.com/mycropen/x-links/stable/builds/x-links-ext-mangadex.user.js) which you're probably here for.
+
 
 ## Developing
 
