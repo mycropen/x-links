@@ -1065,7 +1065,7 @@
             title = title.replace(/\s+/g, " ");
 
             // modify the icon if there's a tag filter defined
-            if (xlinks_api.config.dynasty.tag_filter !== "") {
+            if (xlinks_api.config.dynasty.tag_filter.trim() !== "") {
                 // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
                 var tag_array = xlinks_api.config.dynasty.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
                 var filter_match = false;
