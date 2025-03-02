@@ -251,7 +251,7 @@
                             }
                         }
                     }
-                    console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
+                    // console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
                 }
 
                 replace_icon(this.context, "mangadex", icon_name, apply_style);
