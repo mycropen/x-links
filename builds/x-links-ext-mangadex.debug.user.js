@@ -2,7 +2,7 @@
 // @name        X-links Extension - Mangadex (debug)
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.4.-0xDB
+// @version     1.5.-0xDB
 // @description Linkify and format Mangadex & Dynasty-Scans links
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
@@ -1546,7 +1546,7 @@
 
             if (data.authors.length > 0) {
                 var author_names = Array();
-                for (i = 0; i < data.authors.length; i++) {
+                for (let i = 0; i < data.authors.length; i++) {
                     if (xlinks_api.config.mangadex.show_author && data.author_ids.indexOf(data.authors[i].id) != -1 && author_names.indexOf(data.authors[i].name) == -1) {
                         author_names.push(data.authors[i].name);
                     }
@@ -1597,7 +1597,7 @@
                 data.final.pages = "(" + data.chapter.pages + "p)";
             if (xlinks_api.config.mangadex.show_group && data.groups.length > 0) {
                 combined_group_name = "";
-                for (i = 0; i < data.groups.length; i++) {
+                for (let i = 0; i < data.groups.length; i++) {
                     combined_group_name += data.groups[i].name + ', '
                 }
                 combined_group_name = combined_group_name.replace(/, $/, "");
@@ -1612,54 +1612,76 @@
             aggdata.title = aggdata.title.replace(/\s+/g, " ");
 
             this.callback(null, aggdata);
+
+
+            if (xlinks_api.config.mangadex.show_icon) {
+                // modify the [MD] tag into an icon or flag
+                // apply a style if the tag filter is tripped
+                let icon_name = "site_MD";
+                let apply_style = false;
+
+                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[data.manga.originalLanguage] !== undefined)
+                    icon_name = lang_to_flag[data.manga.originalLanguage]
+
+                // search for tags matching the tag filter
+                if (xlinks_api.config.mangadex.tag_filter.trim() !== "") {
+                    // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
+                    let tag_array = xlinks_api.config.mangadex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+
+                    for (let i = 0; i < data.manga.tags.length; i++) {
+                        if (data.manga.tags[i].attributes.name.en !== undefined) {
+                            if (tag_array.indexOf(data.manga.tags[i].attributes.name.en.toLowerCase()) >= 0) {
+                                apply_style = true;
+                                break;
+                            }
+                        }
+                    }
+                    // console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
+                }
+
+                replace_icon(this.context, "mangadex", icon_name, apply_style);
+            }
         }._w(81);
 
         var aggregators = {};
         
-        var replace_icon = function (ch_id, flag) {
+        var replace_icon = function (ch_id, site, icon_name, apply_style) {
             // url_info.icon was set to a placeholder if use_flags is set
-            // this replaces it with the real flag icon after the manga data was acquired
+            // this replaces it with the real icon (e.g. a flag) after the manga data was acquired
+            // also applies a style to the icon if apply_style is true
+            // site must be either "dynasty" or "mangadex" because it's directly used as the attribute name of xlinks_api.config
+            var style_str = "";
+
+            if (apply_style) {
+                switch (xlinks_api.config[site].tag_filter_style) {
+                    case "none":          style_str = ""; break;
+                    case "rotate180":     style_str = "transform: rotate(180deg)"; break;
+                    case "long_strip":    style_str = "transform: scaleX(0.5)"; break;
+                    case "invert":        style_str = "filter: invert(1)"; break;
+                    case "grayscale":     style_str = "filter: grayscale(1)"; break;
+                    case "opacity50":     style_str = "filter: opacity(0.5)"; break;
+                    case "drop_shadow":   style_str = "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"; break;
+                    case "sepia":         style_str = "filter: sepia(1)"; break;
+                    case "blur1.5":       style_str = "filter: blur(1.5px)"; break;
+                    case "hue_rotate90":  style_str = "filter: hue-rotate(90deg)"; break;
+                    case "hue_rotate180": style_str = "filter: hue-rotate(180deg)"; break;
+                    case "hue_rotate270": style_str = "filter: hue-rotate(270deg)"; break;
+                    case "custom":        style_str = xlinks_api.config[site].tag_filter_style_custom.trim(); break;
+                }
+            }
+            // console.log([ch_id, apply_style, xlinks_api.config[site].tag_filter_style, style_str]);
+
             nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+ch_id+"]");
             for (let i = 0; i < nodes.length; i++) {
-                nodes[i].setAttribute("data-xl-site-tag-icon", flag);
+                nodes[i].setAttribute("data-xl-site-tag-icon", icon_name);
+
+                let node_style = nodes[i].getAttribute("style");
+                if (node_style === undefined || node_style === null)
+                    nodes[i].setAttribute("style", style_str) 
+                else
+                    nodes[i].setAttribute("style", [node_style.trim(";"), style_str].join(";")) 
             }
         }._w(82)
-
-        var modify_icon = function (ch_id, site, apply_style) {
-            // applies a style to the site icon
-            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=modifyme-"+ch_id+"]");
-            if (site === "dynasty") {
-                var style_str = "";
-
-                if (apply_style) {
-                    switch (xlinks_api.config.dynasty.tag_filter_style) {
-                        case "none":          style_str = ""; break;
-                        case "rotate180":     style_str = "transform: rotate(180deg)"; break;
-                        case "long_strip":    style_str = "transform: scaleX(0.5)"; break;
-                        case "invert":        style_str = "filter: invert(1)"; break;
-                        case "grayscale":     style_str = "filter: grayscale(1)"; break;
-                        case "opacity50":     style_str = "filter: opacity(0.5)"; break;
-                        case "drop_shadow":   style_str = "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"; break;
-                        case "sepia":         style_str = "filter: sepia(1)"; break;
-                        case "blur1.5":       style_str = "filter: blur(1.5px)"; break;
-                        case "hue_rotate90":  style_str = "filter: hue-rotate(90deg)"; break;
-                        case "hue_rotate180": style_str = "filter: hue-rotate(180deg)"; break;
-                        case "hue_rotate270": style_str = "filter: hue-rotate(270deg)"; break;
-                        case "custom":        style_str = xlinks_api.config.dynasty.tag_filter_style_custom.trim(); break;
-                    }
-                }
-                // console.log([ch_id, apply_style, xlinks_api.config.dynasty.tag_filter_style, style_str]);
-
-                for (let i = 0; i < nodes.length; i++) {
-                    let node_style = nodes[i].getAttribute("style");
-                    nodes[i].setAttribute("data-xl-site-tag-icon", "site_DS");
-                    if (node_style === undefined || node_style === null)
-                        nodes[i].setAttribute("style", style_str) 
-                    else
-                        nodes[i].setAttribute("style", [node_style.trim(";"), style_str].join(";")) 
-                }
-            }
-        }._w(83)
 
 
         // functions that interact with the API
@@ -1667,13 +1689,13 @@
         var md_get_data = function (info, callback) {
             var data = xlinks_api.cache_get(info.id);
             callback(null, data);
-        }._w(84);
+        }._w(83);
         var md_set_data = function (data, info, callback) {
             var lifetime = 7 * xlinks_api.ttl_1_day;
             if (info.lifetime !== undefined) lifetime = info.lifetime;
             xlinks_api.cache_set(info.id, data, lifetime);
             callback(null);
-        }._w(85);
+        }._w(84);
 
         var md_generic_api_xhr = function (callback) {
             var info = this.infos[0];
@@ -1697,7 +1719,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(86);
+        }._w(85);
         var md_generic_parse_response = function (xhr, callback) {
             // split xhr.context by '_' and forward to the actual parse_response function
             if (xhr.context) {
@@ -1715,7 +1737,7 @@
             }
             else
                 callback("Invalid response: No context.");
-        }._w(87);
+        }._w(86);
 
         var md_chapter_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -1727,7 +1749,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(88);
+        }._w(87);
         var md_chapter_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
@@ -1755,7 +1777,7 @@
             // console.log(["parse_ch_response", jsdata.data, data]);
 
             callback(null, [data]);
-        }._w(89);
+        }._w(88);
 
         var md_manga_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -1767,7 +1789,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(90);
+        }._w(89);
         var md_manga_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
@@ -1802,22 +1824,15 @@
                 relationships:    jsdata.data.relationships || null,
             };
 
-            if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && ctx[1] !== undefined)
-                if (lang_to_flag[data.originalLanguage] !== undefined)
-                    replace_icon(ctx[1], lang_to_flag[data.originalLanguage]);
-                else
-                    // flag not implemented
-                    replace_icon(ctx[1], 'site_MD');
-
             // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
-            get_other_manga_data(ctx[1], data, aggregator);
+            md_get_other_manga_data(ctx[1], data, aggregator);
 
             xlinks_api.cache_set("manga_" + jsdata.data.id, data, 7 * xlinks_api.ttl_1_day);
             aggregator.add_data("manga", data);
 
             callback(null, [data]);
-        }._w(91);
-        var get_other_manga_data = function (context, data, aggregator) {
+        }._w(90);
+        var md_get_other_manga_data = function (context, data, aggregator) {
             var has_authors = 0;
             var author_num = 0;
             var has_artists = 0;
@@ -1921,7 +1936,7 @@
                 aggregator.artist_num = has_artists;
                 aggregator.validate();
             }
-        }._w(92);
+        }._w(91);
 
         var md_group_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -1933,7 +1948,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(93);
+        }._w(92);
         var md_group_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
@@ -1964,7 +1979,7 @@
             aggregators[ctx[1]].add_data("group", data);
 
             callback(null, [data]);
-        }._w(94);
+        }._w(93);
         
         var md_author_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
@@ -1996,7 +2011,7 @@
             aggregators[ctx[1]].add_data("author", data);
 
             callback(null, [data]);
-        }._w(95);
+        }._w(94);
 
         var md_ch_url_get_info = function (url, callback) {
             var m = /(https?:\/*)?(?:www\.)?mangadex\.org\/chapter\/([a-z0-9\-]+)/i.exec(url),
@@ -2017,17 +2032,16 @@
                 //     url_info.includes.push("manga");
 
                 // hack a way to use the site icon as a language flag
-                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags)
+                // The DataAggregator will decide if it's an icon or flag and how to style it
+                if (xlinks_api.config.mangadex.show_icon)
                     url_info.icon = "replaceme-"+url_info.id;
-                else if (xlinks_api.config.mangadex.show_icon)
-                    url_info.icon = "site_MD";
 
                 callback(null, url_info);
             }
             else {
                 callback(null, null);
             }
-        }._w(96);
+        }._w(95);
         var md_ch_url_info_to_data = function (url_info, callback) {
             // make chapter api call with its id as context
             // the parse_response functions will then add their data to the aggregator
@@ -2039,19 +2053,19 @@
             var chdata = xlinks_api.cache_get(url_info.id, null);
             if (chdata !== null) {
                 aggregator.add_data("chapter", chdata);
-                get_other_ch_data(url_info, chdata, aggregator);
+                md_get_other_ch_data(url_info, chdata, aggregator);
             }
             else {
                 xlinks_api.request("mangadex", "generic", url_info.id, url_info, (err, data) => {
                     if (err == null) {
                         md_set_data(data, url_info, (err) => {});
                         aggregator.add_data("chapter", data);
-                        get_other_ch_data(url_info, data, aggregator);
+                        md_get_other_ch_data(url_info, data, aggregator);
                     }
                 });
             }
-        }._w(97);
-        var get_other_ch_data = function (url_info, data, aggregator) {
+        }._w(96);
+        var md_get_other_ch_data = function (url_info, data, aggregator) {
             var has_manga = false;
             var has_groups = 0;
             var group_num = 0;
@@ -2104,10 +2118,7 @@
                             
                             let cached_mangadata = xlinks_api.cache_get("manga_" + manga_url_info.id);
                             if (cached_mangadata !== null && cached_mangadata.relationships) {
-                                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[cached_mangadata.originalLanguage] !== undefined)
-                                    replace_icon(data.id, lang_to_flag[cached_mangadata.originalLanguage]);
-                                // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
-                                get_other_manga_data(data.id, cached_mangadata, aggregator);
+                                md_get_other_manga_data(data.id, cached_mangadata, aggregator);
                                 aggregator.add_data("manga", cached_mangadata);
                             }
                             else
@@ -2134,7 +2145,7 @@
                 aggregator.group_num = has_groups;
                 aggregator.validate();
             }
-        }._w(98)
+        }._w(97)
 
         var md_create_actions = function (data, url_info, callback, retry = false) {
             // console.log(["md_create_actions", data, url_info, callback, aggregators[url_info.id]]);
@@ -2153,6 +2164,7 @@
             // [[id, name, roles], [id, name, roles], ...]
             var author_data = Array();
             var added_author_ids = Array();
+            var mangadata;
             if (aggregators[url_info.id].data.authors.length > 0) {
                 for (let i = 0; i < aggregators[url_info.id].data.authors.length; i++) {
                     if (added_author_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1) continue;
@@ -2169,7 +2181,6 @@
                 // get data from aggregator's manga data or cached manga data
                 var author_ids = Array();
                 var artist_ids = Array();
-                var mangadata;
                 var author_list = Array();
                 if (aggregators[url_info.id].data.manga.relationships)
                     mangadata = aggregators[url_info.id].data.manga;
@@ -2219,12 +2230,7 @@
 
             // [[id, name, group], [id, name, group], ...]
             var tag_data = Array();
-            var tag_groups = {
-                "Genre:": [],
-                "Theme:": [],
-                "Format:": [],
-            };
-            var mangadata;
+            var tag_groups = {};
             // console.log([]);
             if (aggregators[url_info.id].data.manga.tags)
                 mangadata = aggregators[url_info.id].data.manga;
@@ -2291,19 +2297,19 @@
             }
 
             callback(null, urls);
-        }._w(99);
+        }._w(98);
 
         // Dynasty-Scans
         var ds_get_data = function (info, callback) {
             var data = xlinks_api.cache_get(info.id);
             callback(null, data);
-        }._w(100);
+        }._w(99);
         var ds_set_data = function (data, info, callback) {
             var lifetime = 7 * xlinks_api.ttl_1_day;
             if (info.lifetime !== undefined) lifetime = info.lifetime;
             xlinks_api.cache_set(info.id, data, lifetime);
             callback(null);
-        }._w(101);
+        }._w(100);
 
         var ds_chapter_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -2311,7 +2317,7 @@
                 method: "GET",
                 url: "https://dynasty-scans.com/chapters/" + info.id,
             });
-        }._w(102);
+        }._w(101);
         var ds_chapter_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
@@ -2413,7 +2419,7 @@
             data.title = ds_make_title(data, info);
 
             callback(null, [data]);
-        }._w(103);
+        }._w(102);
 
         var ds_ch_url_get_info = function (url, callback) {
             var m = /(https?:\/*)?(?:www\.)?dynasty-scans\.com\/chapters\/([^#]+)/i.exec(url),
@@ -2428,7 +2434,7 @@
 
                 if (xlinks_api.config.dynasty.show_icon) {
                     if (xlinks_api.config.dynasty.tag_filter.trim() !== "")
-                        url_info.icon = "modifyme-"+url_info.id;
+                        url_info.icon = "replaceme-"+url_info.id;
                     else
                         url_info.icon = "site_DS";
                 }
@@ -2438,7 +2444,7 @@
             else {
                 callback(null, null);
             }
-        }._w(104);
+        }._w(103);
         var ds_ch_url_info_to_data = function (url_info, callback) {
             var dsdata = xlinks_api.cache_get(url_info.id, null);
             if (dsdata !== null) {
@@ -2447,7 +2453,7 @@
             }
             else
                 xlinks_api.request("dynasty", "chapter", url_info.id, url_info, callback);
-        }._w(105);
+        }._w(104);
 
         var ds_make_title = function (data, url_info) {
             var title = data.base_title;
@@ -2461,7 +2467,7 @@
             title = title.replace(/\s+/g, " ");
 
             // modify the icon if there's a tag filter defined
-            if (xlinks_api.config.dynasty.tag_filter !== "") {
+            if (xlinks_api.config.dynasty.tag_filter.trim() !== "") {
                 // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
                 var tag_array = xlinks_api.config.dynasty.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
                 var filter_match = false;
@@ -2474,11 +2480,11 @@
                 }
 
                 // console.log([title, data.tags, tag_array, filter_match])
-                modify_icon(url_info.id, "dynasty", filter_match);
+                replace_icon(url_info.id, "dynasty", "site_DS", filter_match);
             }
 
             return title;
-        }._w(106)
+        }._w(105)
 
         var ds_create_actions = function (data, info, callback, retry = false) {
             // console.log(["ds_create_actions", data, info, callback]);
@@ -2541,14 +2547,14 @@
             }
 
             callback(null, urls);
-        }._w(107);
+        }._w(106);
 
         xlinks_api.init({
             namespace: "mangadex",
             name: "Mangadex & Dynasty links",
             author: "mycropen",
             description: "Linkify and format Mangadex & Dynasty-Scans links",
-            version: [1,4,-0xDB],
+            version: [1,5,-0xDB],
             registrations: 1,
             main: main_fn
         }, function (err) {
@@ -2585,6 +2591,33 @@
                                 "orig = original language; -ro = romanized; e.g. ja, ja-ro, en, zh, zh-hk, ko, id, th, es, vi, de, ru, uk, fr, fa, pt, pt-br, tr, ...",
                                 {type: "textbox"}],
                             // ["show_ch_lang", false, "Show chapter language", "Include the language a chapter was translated into"],
+                            ["tag_filter", "", "Tag filter", "(https://mangadex.org/tag) List of English tag names separated by a comma; e.g. \"4-koma, genderswap, gore\"",
+                                {type: "textbox"}
+                            ],
+                            ["tag_filter_style", "invert", "How to modify the icon on a tag filter match", "Only works if you show an icon or flag instead of an [MD] tag",
+                                {
+                                    type: "select",
+                                    options: [
+                                        // [ value, label_text, description? ]
+                                        ["none",            "No change",        ""],
+                                        ["rotate180",       "Rotate 180°",      "transform: rotate(180deg)"],
+                                        ["long_strip",      "Long strip",       "transform: scaleX(0.5)"],
+                                        ["invert",          "Invert colors",    "filter: invert(1)"],
+                                        ["grayscale",       "Grayscale",        "filter: grayscale(1)"],
+                                        ["opacity50",       "Opacity 50%",      "filter: opacity(0.5)"],
+                                        ["drop_shadow",     "Drop shadow",      "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"],
+                                        ["sepia",           "Sepia",            "filter: sepia(1)"],
+                                        ["blur1.5",         "Blur",             "filter: blur(1.5px)"],
+                                        ["hue_rotate90",    "Hue rotate 90°",   "filter: hue-rotate(90deg)"],
+                                        ["hue_rotate180",   "Hue rotate 180°",  "filter: hue-rotate(180deg)"],
+                                        ["hue_rotate270",   "Hue rotate 270°",  "filter: hue-rotate(270deg)"],
+                                        ["custom",          "Custom CSS",       "<Your CSS here!>"],
+                                    ]
+                                }
+                            ],
+                            ["tag_filter_style_custom", "", "Custom CSS for matched tag filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
+                                {type: "textbox"}
+                            ],
                         ],
                         dynasty: [
                             ["show_icon", true, "Show an icon instead of a [DS] tag", ""],
@@ -2674,7 +2707,7 @@
                     }]
                 });
             }
-        }._w(108));
+        }._w(107));
     }._w(67);
     main(xlinks_api);
 })();

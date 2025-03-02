@@ -1,5 +1,9 @@
 master
 
+1.5
+- mycropen
+  + Mangadex: New options for a tag filter, same as for Dynasty in v1.4. Filter applies to tags for genre, format and theme.
+
 1.4
 - mycropen
   + Mangadex: actions pane (when clicking on the icon or [MD] tag) should load correctly even if you don't have "show author" or "show artist" enabled
