@@ -647,19 +647,19 @@
             var chdata = xlinks_api.cache_get(url_info.id, null);
             if (chdata !== null) {
                 aggregator.add_data("chapter", chdata);
-                get_other_ch_data(url_info, chdata, aggregator);
+                md_get_other_ch_data(url_info, chdata, aggregator);
             }
             else {
                 xlinks_api.request("mangadex", "generic", url_info.id, url_info, (err, data) => {
                     if (err == null) {
                         md_set_data(data, url_info, (err) => {});
                         aggregator.add_data("chapter", data);
-                        get_other_ch_data(url_info, data, aggregator);
+                        md_get_other_ch_data(url_info, data, aggregator);
                     }
                 });
             }
         };
-        var get_other_ch_data = function (url_info, data, aggregator) {
+        var md_get_other_ch_data = function (url_info, data, aggregator) {
             var has_manga = false;
             var has_groups = 0;
             var group_num = 0;
