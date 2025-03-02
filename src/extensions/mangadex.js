@@ -418,14 +418,14 @@
                     replace_icon(ctx[1], "mangadex", "site_MD", false);
 
             // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
-            get_other_manga_data(ctx[1], data, aggregator);
+            md_get_other_manga_data(ctx[1], data, aggregator);
 
             xlinks_api.cache_set("manga_" + jsdata.data.id, data, 7 * xlinks_api.ttl_1_day);
             aggregator.add_data("manga", data);
 
             callback(null, [data]);
         };
-        var get_other_manga_data = function (context, data, aggregator) {
+        var md_get_other_manga_data = function (context, data, aggregator) {
             var has_authors = 0;
             var author_num = 0;
             var has_artists = 0;
@@ -715,7 +715,7 @@
                                 if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[cached_mangadata.originalLanguage] !== undefined)
                                     replace_icon(data.id, "mangadex", lang_to_flag[cached_mangadata.originalLanguage], false);
                                 // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
-                                get_other_manga_data(data.id, cached_mangadata, aggregator);
+                                md_get_other_manga_data(data.id, cached_mangadata, aggregator);
                                 aggregator.add_data("manga", cached_mangadata);
                             }
                             else
