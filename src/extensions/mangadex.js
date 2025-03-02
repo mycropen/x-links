@@ -827,11 +827,7 @@
 
             // [[id, name, group], [id, name, group], ...]
             var tag_data = Array();
-            var tag_groups = {
-                "Genre:": [],
-                "Theme:": [],
-                "Format:": [],
-            };
+            var tag_groups = {};
             var mangadata;
             // console.log([]);
             if (aggregators[url_info.id].data.manga.tags)
