@@ -1189,6 +1189,33 @@
                                 "orig = original language; -ro = romanized; e.g. ja, ja-ro, en, zh, zh-hk, ko, id, th, es, vi, de, ru, uk, fr, fa, pt, pt-br, tr, ...",
                                 {type: "textbox"}],
                             // ["show_ch_lang", false, "Show chapter language", "Include the language a chapter was translated into"],
+                            ["tag_filter", "", "Tag filter", "(https://mangadex.org/tag/) List of tags separated by a comma; e.g. \"4-koma, genderswap, gore\"",
+                                {type: "textbox"}
+                            ],
+                            ["tag_filter_style", "invert", "How to modify the icon on a tag filter match", "Only works if you show an icon or flag instead of an [MD] tag",
+                                {
+                                    type: "select",
+                                    options: [
+                                        // [ value, label_text, description? ]
+                                        ["none",            "No change",        ""],
+                                        ["rotate180",       "Rotate 180°",      "transform: rotate(180deg)"],
+                                        ["long_strip",      "Long strip",       "transform: scaleX(0.5)"],
+                                        ["invert",          "Invert colors",    "filter: invert(1)"],
+                                        ["grayscale",       "Grayscale",        "filter: grayscale(1)"],
+                                        ["opacity50",       "Opacity 50%",      "filter: opacity(0.5)"],
+                                        ["drop_shadow",     "Drop shadow",      "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"],
+                                        ["sepia",           "Sepia",            "filter: sepia(1)"],
+                                        ["blur1.5",         "Blur",             "filter: blur(1.5px)"],
+                                        ["hue_rotate90",    "Hue rotate 90°",   "filter: hue-rotate(90deg)"],
+                                        ["hue_rotate180",   "Hue rotate 180°",  "filter: hue-rotate(180deg)"],
+                                        ["hue_rotate270",   "Hue rotate 270°",  "filter: hue-rotate(270deg)"],
+                                        ["custom",          "Custom CSS",       "<Your CSS here!>"],
+                                    ]
+                                }
+                            ],
+                            ["tag_filter_style_custom", "", "Custom CSS for matched tag filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
+                                {type: "textbox"}
+                            ],
                         ],
                         dynasty: [
                             ["show_icon", true, "Show an icon instead of a [DS] tag", ""],
