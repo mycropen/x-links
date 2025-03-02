@@ -161,7 +161,7 @@
 
             if (data.authors.length > 0) {
                 var author_names = Array();
-                for (i = 0; i < data.authors.length; i++) {
+                for (let i = 0; i < data.authors.length; i++) {
                     if (xlinks_api.config.mangadex.show_author && data.author_ids.indexOf(data.authors[i].id) != -1 && author_names.indexOf(data.authors[i].name) == -1) {
                         author_names.push(data.authors[i].name);
                     }
@@ -212,7 +212,7 @@
                 data.final.pages = "(" + data.chapter.pages + "p)";
             if (xlinks_api.config.mangadex.show_group && data.groups.length > 0) {
                 combined_group_name = "";
-                for (i = 0; i < data.groups.length; i++) {
+                for (let i = 0; i < data.groups.length; i++) {
                     combined_group_name += data.groups[i].name + ', '
                 }
                 combined_group_name = combined_group_name.replace(/, $/, "");
@@ -227,6 +227,35 @@
             aggdata.title = aggdata.title.replace(/\s+/g, " ");
 
             this.callback(null, aggdata);
+
+
+            if (xlinks_api.config.mangadex.show_icon) {
+                // modify the [MD] tag into an icon or flag
+                // apply a style if the tag filter is tripped
+                let icon_name = "site_MD";
+                let apply_style = false;
+
+                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[data.manga.originalLanguage] !== undefined)
+                    icon_name = lang_to_flag[data.manga.originalLanguage]
+
+                // search for tags matching the tag filter
+                if (xlinks_api.config.mangadex.tag_filter.trim() !== "") {
+                    // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
+                    let tag_array = xlinks_api.config.mangadex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+
+                    for (let i = 0; i < data.manga.tags.length; i++) {
+                        if (data.manga.tags[i].attributes.name.en !== undefined) {
+                            if (tag_array.indexOf(data.manga.tags[i].attributes.name.en.toLowerCase()) >= 0) {
+                                apply_style = true;
+                                break;
+                            }
+                        }
+                    }
+                    console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
+                }
+
+                replace_icon(this.context, "mangadex", icon_name, apply_style);
+            }
         };
 
         var aggregators = {};
@@ -409,13 +438,6 @@
                 tags:             jsdata.data.attributes.tags || null,
                 relationships:    jsdata.data.relationships || null,
             };
-
-            if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && ctx[1] !== undefined)
-                if (lang_to_flag[data.originalLanguage] !== undefined)
-                    replace_icon(ctx[1], "mangadex", lang_to_flag[data.originalLanguage], false);
-                else
-                    // flag not implemented
-                    replace_icon(ctx[1], "mangadex", "site_MD", false);
 
             // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
             md_get_other_manga_data(ctx[1], data, aggregator);
@@ -625,10 +647,9 @@
                 //     url_info.includes.push("manga");
 
                 // hack a way to use the site icon as a language flag
-                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags)
+                // The DataAggregator will decide if it's an icon or flag and how to style it
+                if (xlinks_api.config.mangadex.show_icon)
                     url_info.icon = "replaceme-"+url_info.id;
-                else if (xlinks_api.config.mangadex.show_icon)
-                    url_info.icon = "site_MD";
 
                 callback(null, url_info);
             }
@@ -712,9 +733,6 @@
                             
                             let cached_mangadata = xlinks_api.cache_get("manga_" + manga_url_info.id);
                             if (cached_mangadata !== null && cached_mangadata.relationships) {
-                                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[cached_mangadata.originalLanguage] !== undefined)
-                                    replace_icon(data.id, "mangadex", lang_to_flag[cached_mangadata.originalLanguage], false);
-                                // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
                                 md_get_other_manga_data(data.id, cached_mangadata, aggregator);
                                 aggregator.add_data("manga", cached_mangadata);
                             }
@@ -1189,7 +1207,7 @@
                                 "orig = original language; -ro = romanized; e.g. ja, ja-ro, en, zh, zh-hk, ko, id, th, es, vi, de, ru, uk, fr, fa, pt, pt-br, tr, ...",
                                 {type: "textbox"}],
                             // ["show_ch_lang", false, "Show chapter language", "Include the language a chapter was translated into"],
-                            ["tag_filter", "", "Tag filter", "(https://mangadex.org/tag/) List of tags separated by a comma; e.g. \"4-koma, genderswap, gore\"",
+                            ["tag_filter", "", "Tag filter", "(https://mangadex.org/tag) List of English tag names separated by a comma; e.g. \"4-koma, genderswap, gore\"",
                                 {type: "textbox"}
                             ],
                             ["tag_filter_style", "invert", "How to modify the icon on a tag filter match", "Only works if you show an icon or flag instead of an [MD] tag",
