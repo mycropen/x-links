@@ -231,48 +231,41 @@
 
         var aggregators = {};
         
-        var replace_icon = function (ch_id, flag) {
+        var replace_icon = function (ch_id, site, icon_name, apply_style) {
             // url_info.icon was set to a placeholder if use_flags is set
-            // this replaces it with the real flag icon after the manga data was acquired
+            // this replaces it with the real icon (e.g. a flag) after the manga data was acquired
+            // also applies a style to the icon if apply_style is true
+            // site must be either "dynasty" or "mangadex" because it's directly used as the attribute name of xlinks_api.config
+            var style_str = "";
+
+            if (apply_style) {
+                switch (xlinks_api.config[site].tag_filter_style) {
+                    case "none":          style_str = ""; break;
+                    case "rotate180":     style_str = "transform: rotate(180deg)"; break;
+                    case "long_strip":    style_str = "transform: scaleX(0.5)"; break;
+                    case "invert":        style_str = "filter: invert(1)"; break;
+                    case "grayscale":     style_str = "filter: grayscale(1)"; break;
+                    case "opacity50":     style_str = "filter: opacity(0.5)"; break;
+                    case "drop_shadow":   style_str = "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"; break;
+                    case "sepia":         style_str = "filter: sepia(1)"; break;
+                    case "blur1.5":       style_str = "filter: blur(1.5px)"; break;
+                    case "hue_rotate90":  style_str = "filter: hue-rotate(90deg)"; break;
+                    case "hue_rotate180": style_str = "filter: hue-rotate(180deg)"; break;
+                    case "hue_rotate270": style_str = "filter: hue-rotate(270deg)"; break;
+                    case "custom":        style_str = xlinks_api.config[site].tag_filter_style_custom.trim(); break;
+                }
+            }
+            // console.log([ch_id, apply_style, xlinks_api.config[site].tag_filter_style, style_str]);
+
             nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+ch_id+"]");
             for (let i = 0; i < nodes.length; i++) {
-                nodes[i].setAttribute("data-xl-site-tag-icon", flag);
-            }
-        }
+                nodes[i].setAttribute("data-xl-site-tag-icon", icon_name);
 
-        var modify_icon = function (ch_id, site, apply_style) {
-            // applies a style to the site icon
-            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=modifyme-"+ch_id+"]");
-            if (site === "dynasty") {
-                var style_str = "";
-
-                if (apply_style) {
-                    switch (xlinks_api.config.dynasty.tag_filter_style) {
-                        case "none":          style_str = ""; break;
-                        case "rotate180":     style_str = "transform: rotate(180deg)"; break;
-                        case "long_strip":    style_str = "transform: scaleX(0.5)"; break;
-                        case "invert":        style_str = "filter: invert(1)"; break;
-                        case "grayscale":     style_str = "filter: grayscale(1)"; break;
-                        case "opacity50":     style_str = "filter: opacity(0.5)"; break;
-                        case "drop_shadow":   style_str = "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"; break;
-                        case "sepia":         style_str = "filter: sepia(1)"; break;
-                        case "blur1.5":       style_str = "filter: blur(1.5px)"; break;
-                        case "hue_rotate90":  style_str = "filter: hue-rotate(90deg)"; break;
-                        case "hue_rotate180": style_str = "filter: hue-rotate(180deg)"; break;
-                        case "hue_rotate270": style_str = "filter: hue-rotate(270deg)"; break;
-                        case "custom":        style_str = xlinks_api.config.dynasty.tag_filter_style_custom.trim(); break;
-                    }
-                }
-                // console.log([ch_id, apply_style, xlinks_api.config.dynasty.tag_filter_style, style_str]);
-
-                for (let i = 0; i < nodes.length; i++) {
-                    let node_style = nodes[i].getAttribute("style");
-                    nodes[i].setAttribute("data-xl-site-tag-icon", "site_DS");
-                    if (node_style === undefined || node_style === null)
-                        nodes[i].setAttribute("style", style_str) 
-                    else
-                        nodes[i].setAttribute("style", [node_style.trim(";"), style_str].join(";")) 
-                }
+                let node_style = nodes[i].getAttribute("style");
+                if (node_style === undefined || node_style === null)
+                    nodes[i].setAttribute("style", style_str) 
+                else
+                    nodes[i].setAttribute("style", [node_style.trim(";"), style_str].join(";")) 
             }
         }
 
@@ -419,10 +412,10 @@
 
             if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && ctx[1] !== undefined)
                 if (lang_to_flag[data.originalLanguage] !== undefined)
-                    replace_icon(ctx[1], lang_to_flag[data.originalLanguage]);
+                    replace_icon(ctx[1], "mangadex", lang_to_flag[data.originalLanguage], false);
                 else
                     // flag not implemented
-                    replace_icon(ctx[1], 'site_MD');
+                    replace_icon(ctx[1], "mangadex", "site_MD", false);
 
             // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
             get_other_manga_data(ctx[1], data, aggregator);
@@ -720,7 +713,7 @@
                             let cached_mangadata = xlinks_api.cache_get("manga_" + manga_url_info.id);
                             if (cached_mangadata !== null && cached_mangadata.relationships) {
                                 if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[cached_mangadata.originalLanguage] !== undefined)
-                                    replace_icon(data.id, lang_to_flag[cached_mangadata.originalLanguage]);
+                                    replace_icon(data.id, "mangadex", lang_to_flag[cached_mangadata.originalLanguage], false);
                                 // if (xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist)
                                 get_other_manga_data(data.id, cached_mangadata, aggregator);
                                 aggregator.add_data("manga", cached_mangadata);
@@ -1043,7 +1036,7 @@
 
                 if (xlinks_api.config.dynasty.show_icon) {
                     if (xlinks_api.config.dynasty.tag_filter.trim() !== "")
-                        url_info.icon = "modifyme-"+url_info.id;
+                        url_info.icon = "replaceme-"+url_info.id;
                     else
                         url_info.icon = "site_DS";
                 }
@@ -1089,7 +1082,7 @@
                 }
 
                 // console.log([title, data.tags, tag_array, filter_match])
-                modify_icon(url_info.id, "dynasty", filter_match);
+                replace_icon(url_info.id, "dynasty", "site_DS", filter_match);
             }
 
             return title;
