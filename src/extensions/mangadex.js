@@ -779,6 +779,7 @@
             // [[id, name, roles], [id, name, roles], ...]
             var author_data = Array();
             var added_author_ids = Array();
+            var mangadata;
             if (aggregators[url_info.id].data.authors.length > 0) {
                 for (let i = 0; i < aggregators[url_info.id].data.authors.length; i++) {
                     if (added_author_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1) continue;
@@ -795,7 +796,6 @@
                 // get data from aggregator's manga data or cached manga data
                 var author_ids = Array();
                 var artist_ids = Array();
-                var mangadata;
                 var author_list = Array();
                 if (aggregators[url_info.id].data.manga.relationships)
                     mangadata = aggregators[url_info.id].data.manga;
@@ -846,7 +846,6 @@
             // [[id, name, group], [id, name, group], ...]
             var tag_data = Array();
             var tag_groups = {};
-            var mangadata;
             // console.log([]);
             if (aggregators[url_info.id].data.manga.tags)
                 mangadata = aggregators[url_info.id].data.manga;
