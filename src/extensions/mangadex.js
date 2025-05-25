@@ -914,16 +914,17 @@
             callback(null, urls);
         };
 
+
         // Dynasty-Scans
-        var ds_get_data = function (info, callback) {
-            var data = xlinks_api.cache_get(info.id);
-            callback(null, data);
+        var ds_get_data = function (info) {
+            var data = xlinks_api.cache_get("ds_" + info.id);
+            return data;
         };
-        var ds_set_data = function (data, info, callback) {
+        var ds_set_data = function (data, info, err_callback) {
             var lifetime = 7 * xlinks_api.ttl_1_day;
             if (info.lifetime !== undefined) lifetime = info.lifetime;
-            xlinks_api.cache_set(info.id, data, lifetime);
-            callback(null);
+            xlinks_api.cache_set("ds_" + info.id, data, lifetime);
+            if (err_callback !== null) err_callback(null);
         };
 
         var ds_chapter_setup_xhr = function (callback) {
@@ -1061,7 +1062,8 @@
             }
         };
         var ds_ch_url_info_to_data = function (url_info, callback) {
-            var dsdata = xlinks_api.cache_get(url_info.id, null);
+            // var dsdata = xlinks_api.cache_get(url_info.id, null);
+            var dsdata = ds_get_data(url_info);
             if (dsdata !== null) {
                 dsdata.title = ds_make_title(dsdata, url_info);
                 callback(null, dsdata);
@@ -1099,7 +1101,7 @@
             }
 
             return title;
-        }
+        };
 
         var ds_create_actions = function (data, info, callback, retry = false) {
             // console.log(["ds_create_actions", data, info, callback]);
