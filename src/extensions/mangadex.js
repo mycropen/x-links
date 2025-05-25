@@ -63,8 +63,49 @@
             "id": "lang_id",
             "th": "lang_th",
         };
+        
+        var replace_icon = function (ch_id, site, icon_name, apply_style) {
+            // url_info.icon was set to a placeholder if use_flags is set
+            // this replaces it with the real icon (e.g. a flag) after the manga data was acquired
+            // also applies a style to the icon if apply_style is true
+            // site must be either "dynasty" or "mangadex" because it's directly used as the attribute name of xlinks_api.config
+            var style_str = "";
 
-        var DataAggregator = function (final_callback) {
+            if (apply_style) {
+                switch (xlinks_api.config[site].tag_filter_style) {
+                    case "none":          style_str = ""; break;
+                    case "rotate180":     style_str = "transform: rotate(180deg)"; break;
+                    case "long_strip":    style_str = "transform: scaleX(0.5)"; break;
+                    case "invert":        style_str = "filter: invert(1)"; break;
+                    case "grayscale":     style_str = "filter: grayscale(1)"; break;
+                    case "opacity50":     style_str = "filter: opacity(0.5)"; break;
+                    case "drop_shadow":   style_str = "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"; break;
+                    case "sepia":         style_str = "filter: sepia(1)"; break;
+                    case "blur1.5":       style_str = "filter: blur(1.5px)"; break;
+                    case "hue_rotate90":  style_str = "filter: hue-rotate(90deg)"; break;
+                    case "hue_rotate180": style_str = "filter: hue-rotate(180deg)"; break;
+                    case "hue_rotate270": style_str = "filter: hue-rotate(270deg)"; break;
+                    case "custom":        style_str = xlinks_api.config[site].tag_filter_style_custom.trim(); break;
+                }
+            }
+            // console.log([ch_id, apply_style, xlinks_api.config[site].tag_filter_style, style_str]);
+
+            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+ch_id+"]");
+            for (let i = 0; i < nodes.length; i++) {
+                nodes[i].setAttribute("data-xl-site-tag-icon", icon_name);
+
+                let node_style = nodes[i].getAttribute("style");
+                if (node_style === undefined || node_style === null)
+                    nodes[i].setAttribute("style", style_str) 
+                else
+                    nodes[i].setAttribute("style", [node_style.trim(";"), style_str].join(";")) 
+            }
+        }
+
+
+        // functions that interact with the API
+        // Mangadex
+        var MangadexDataAggregator = function (final_callback) {
             this.callback = final_callback;
             this.context = null;
             this.group_num = 0;
@@ -77,13 +118,13 @@
                 artist_ids: Array(),
             };
         };
-        DataAggregator.prototype.add_author_id = function (id) {
+        MangadexDataAggregator.prototype.add_author_id = function (id) {
             this.data.author_ids.push(id);
         };
-        DataAggregator.prototype.add_artist_id = function (id) {
+        MangadexDataAggregator.prototype.add_artist_id = function (id) {
             this.data.artist_ids.push(id);
         };
-        DataAggregator.prototype.add_data = function (category, data) {
+        MangadexDataAggregator.prototype.add_data = function (category, data) {
             if (category == "group")
                 this.data.groups.push(data);
             else if (category == "author")
@@ -92,7 +133,7 @@
                 this.data[category] = data;
             this.validate();
         };
-        DataAggregator.prototype.validate = function () {
+        MangadexDataAggregator.prototype.validate = function () {
             // call this.callback if this.data has all necessary categories
             if (this.data.chapter == undefined)
                 return;
@@ -259,48 +300,7 @@
         };
 
         var md_aggregators = {};
-        
-        var replace_icon = function (ch_id, site, icon_name, apply_style) {
-            // url_info.icon was set to a placeholder if use_flags is set
-            // this replaces it with the real icon (e.g. a flag) after the manga data was acquired
-            // also applies a style to the icon if apply_style is true
-            // site must be either "dynasty" or "mangadex" because it's directly used as the attribute name of xlinks_api.config
-            var style_str = "";
 
-            if (apply_style) {
-                switch (xlinks_api.config[site].tag_filter_style) {
-                    case "none":          style_str = ""; break;
-                    case "rotate180":     style_str = "transform: rotate(180deg)"; break;
-                    case "long_strip":    style_str = "transform: scaleX(0.5)"; break;
-                    case "invert":        style_str = "filter: invert(1)"; break;
-                    case "grayscale":     style_str = "filter: grayscale(1)"; break;
-                    case "opacity50":     style_str = "filter: opacity(0.5)"; break;
-                    case "drop_shadow":   style_str = "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"; break;
-                    case "sepia":         style_str = "filter: sepia(1)"; break;
-                    case "blur1.5":       style_str = "filter: blur(1.5px)"; break;
-                    case "hue_rotate90":  style_str = "filter: hue-rotate(90deg)"; break;
-                    case "hue_rotate180": style_str = "filter: hue-rotate(180deg)"; break;
-                    case "hue_rotate270": style_str = "filter: hue-rotate(270deg)"; break;
-                    case "custom":        style_str = xlinks_api.config[site].tag_filter_style_custom.trim(); break;
-                }
-            }
-            // console.log([ch_id, apply_style, xlinks_api.config[site].tag_filter_style, style_str]);
-
-            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+ch_id+"]");
-            for (let i = 0; i < nodes.length; i++) {
-                nodes[i].setAttribute("data-xl-site-tag-icon", icon_name);
-
-                let node_style = nodes[i].getAttribute("style");
-                if (node_style === undefined || node_style === null)
-                    nodes[i].setAttribute("style", style_str) 
-                else
-                    nodes[i].setAttribute("style", [node_style.trim(";"), style_str].join(";")) 
-            }
-        }
-
-
-        // functions that interact with the API
-        // Mangadex
         var md_get_data = function (info, callback) {
             var data = xlinks_api.cache_get(info.id);
             callback(null, data);
@@ -647,7 +647,7 @@
                 //     url_info.includes.push("manga");
 
                 // hack a way to use the site icon as a language flag
-                // The DataAggregator will decide if it's an icon or flag and how to style it
+                // The MangadexDataAggregator will decide if it's an icon or flag and how to style it
                 if (xlinks_api.config.mangadex.show_icon)
                     url_info.icon = "replaceme-"+url_info.id;
 
@@ -661,7 +661,7 @@
             // make chapter api call with its id as context
             // the parse_response functions will then add their data to the aggregator
             var ctx = url_info.context.split("_");
-            var aggregator = new DataAggregator(callback);
+            var aggregator = new MangadexDataAggregator(callback);
             aggregator.context = ctx[1];
             md_aggregators[ctx[1]] = aggregator;
 
