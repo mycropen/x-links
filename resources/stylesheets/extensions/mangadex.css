@@ -30,3 +30,11 @@
 .xl-site-tag-icon[data-xl-site-tag-icon=site_MD] {
     background-image: url('#{data:../../images/extensions/mangadex/MD.png}#');
 }
+
+.xl-site-tag-icon[data-xl-site-tag-icon=site_CK] {
+    background-image: url('#{data:../../images/extensions/mangadex/CK.png}#');
+}
+
+.xl-site-tag-icon[data-xl-site-tag-icon=site_BT] {
+    background-image: url('#{data:../../images/extensions/mangadex/BT.png}#');
+}

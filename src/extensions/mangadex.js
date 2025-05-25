@@ -1166,6 +1166,17 @@
             callback(null, urls);
         };
 
+
+        // comick.io
+        // has API -> DataAggregator?
+
+
+
+        // bato.to
+
+
+
+
         xlinks_api.init({
             namespace: "mangadex",
             name: "Mangadex & Dynasty links",
@@ -1181,9 +1192,11 @@
                 xlinks_api.register({
                     settings: {
                         sites: [ // namespace
-                            //name,      default, title,               description,                             descriptor?
-                            ["mangadex", true,    "mangadex.org",      "Enable link processing for mangadex.org"],
-                            ["dynasty",  true,    "dynasty-scans.com", "Enable link processing for dynasty-scans.com"],
+                            //name,       default, title,               description,                             descriptor?
+                            ["mangadex",  true,    "mangadex.org",      "Enable link processing for mangadex.org"],
+                            ["dynasty",   true,    "dynasty-scans.com", "Enable link processing for dynasty-scans.com"],
+                            ["comick.io", true,    "comick.io",         "Enable link processing for comick.io"],
+                            ["bato.to",   true,    "bato.to",           "Enable link processing for bato.to"],
                             // descriptor: { type: string, options: <array of [string:value, string:label, string:description, {type: ...}]> }
                             //  the {type: ...} is optional and can take the following values: "checkbox", "select", "textbox", "textarea", "button"
                             //      {type: "checkbox"}
@@ -1268,60 +1281,129 @@
                             ["tag_filter_style_custom", "", "Custom CSS for matched tag filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
                                 {type: "textbox"}
                             ],
-                        ]
+                        ],
+                        comick: [
+                            ["show_icon", true, "Show an icon instead of a [CK] tag", ""],
+                            ["show_author", true, "Show author name", ""],
+                            ["show_pages", true, "Show page count", ""],
+                            ["show_group", false, "Show group name", ""],
+                        ],
+                        bato: [
+                            ["show_icon", true, "Show an icon instead of a [BT] tag", ""],
+                            ["show_author", true, "Show author name", ""],
+                            ["show_pages", true, "Show page count", ""],
+                            ["show_group", false, "Show group name", ""],
+                        ],
                     },
-                    request_apis: [{
-                        group: "mangadex",
-                        namespace: "mangadex",
-                        type: "generic",
-                        count: 1,
-                        concurrent: 1,
-                        delay_okay: 220,
-                        delay_error: 5000,
-                        functions: {
-                            // get_data: md_get_data,
-                            // set_data: md_set_data,
-                            setup_xhr: md_generic_api_xhr,
-                            parse_response: md_generic_parse_response
+                    request_apis: [
+                        {
+                            group: "mangadex",
+                            namespace: "mangadex",
+                            type: "generic",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 220,
+                            delay_error: 5000,
+                            functions: {
+                                // get_data: md_get_data,
+                                // set_data: md_set_data,
+                                setup_xhr: md_generic_api_xhr,
+                                parse_response: md_generic_parse_response
+                            },
                         },
-                    },
-                    {
-                        group: "dynasty",
-                        namespace: "dynasty",
-                        type: "chapter",
-                        count: 1,
-                        concurrent: 1,
-                        delay_okay: 100,
-                        delay_error: 5000,
-                        functions: {
-                            setup_xhr: ds_chapter_setup_xhr,
-                            parse_response: ds_chapter_parse_response
+                        {
+                            group: "dynasty",
+                            namespace: "dynasty",
+                            type: "chapter",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 100,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: ds_chapter_setup_xhr,
+                                parse_response: ds_chapter_parse_response
+                            },
                         },
-                    }],
-                    linkifiers: [{
+                        {
+                            group: "comick",
+                            namespace: "comick",
+                            type: "chapter",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 100,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: ck_chapter_setup_xhr,
+                                parse_response: ck_chapter_parse_response
+                            },
+                        },
+                        {
+                            group: "bato",
+                            namespace: "bato",
+                            type: "generic",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 100,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: bt_generic_setup_xhr,
+                                parse_response: bt_generic_parse_response
+                            },
+                        },
+                    ],
+                    linkifiers: [
+                        {
                         // mangadex.org can only be preceeded by "https://" or "www." or both or neither
                         // the link ends either with the ID, a "/", a "#" or "/5" (for page 5)
                         regex: /(https?:\/\/)?(www\.)?(?<=(www\.|\/\/|\s+|^))mangadex\.org\/chapter\/([a-z0-9\-]+)(\/|\/\d+|\/\d+)?#?/i,
                         prefix_group: 1,
                         prefix: "https://",
-                    },
-                    {
-                        regex: /(https?:\/*)?(?:www\.)?dynasty-scans.com\/chapters\/(?:[^\s]+)?/i,
-                        prefix_group: 1,
-                        prefix: "https://",
-                    }],
-                    commands: [{
-                        url_info: md_ch_url_get_info,
-                        to_data: md_ch_url_info_to_data,
-                        actions: md_create_actions,
-                        // details: create_details
-                    },
-                    {
-                        url_info: ds_ch_url_get_info,
-                        to_data: ds_ch_url_info_to_data,
-                        actions: ds_create_actions,
-                        // details: create_details
-                    }]
+                        },
+                        {
+                            regex: /(https?:\/*)?(?:www\.)?dynasty-scans.com\/chapters\/(?:[^\s]+)?/i,
+                            prefix_group: 1,
+                            prefix: "https://",
+                        },
+                        {
+                            //https://comick.io/comic/([^\/]+)/([^\/]+)-chapter
+                            regex: /(https?:\/*)?(?:www\.)?comick.io\/comic\/([^\/]+)\/([^\/]+)-chapter/i,
+                            prefix_group: 1,
+                            prefix: "https://",
+                        },
+                        {
+                            // bato.to v2: https://bato.to/chapter/3362345
+                            // bato.to v3: https://bato.to/title/137465-destroy-it-all-and-love-me-in-hell/3362345-vol_5-ch_21.5
+                            regex: /(https?:\/*)?(?:www\.)?bato.to\/(chapter|title\/[^\/]+)\/\d+/i,
+                            prefix_group: 1,
+                            prefix: "https://",
+                        },
+                    ],
+                    commands: [
+                        {
+                            url_info: md_ch_url_get_info,
+                            to_data: md_ch_url_info_to_data,
+                            actions: md_create_actions,
+                            // details: create_details
+                        },
+                        {
+                            url_info: ds_ch_url_get_info,
+                            to_data: ds_ch_url_info_to_data,
+                            actions: ds_create_actions,
+                            // details: create_details
+                        },
+                        {
+                            url_info: ck_ch_url_get_info,
+                            to_data: ck_ch_url_info_to_data,
+                            actions: ck_create_actions,
+                            // details: create_details
+                        },
+                        {
+                            url_info: bt_ch_url_get_info,
+                            to_data: bt_ch_url_info_to_data,
+                            actions: bt_create_actions,
+                            // details: create_details
+                        },
+                    ]
                 });
             }
         });
