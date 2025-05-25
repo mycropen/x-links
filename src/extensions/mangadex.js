@@ -105,199 +105,205 @@
 
         // functions that interact with the API
         // Mangadex
-        var MangadexDataAggregator = function (final_callback) {
-            this.callback = final_callback;
-            this.context = null;
-            this.group_num = 0;
-            this.author_num = 1;
-            this.artist_num = 1;
-            this.data = {
-                groups: Array(),
-                authors: Array(),
-                author_ids: Array(),
-                artist_ids: Array(),
-            };
-        };
-        MangadexDataAggregator.prototype.add_author_id = function (id) {
-            this.data.author_ids.push(id);
-        };
-        MangadexDataAggregator.prototype.add_artist_id = function (id) {
-            this.data.artist_ids.push(id);
-        };
-        MangadexDataAggregator.prototype.add_data = function (category, data) {
-            if (category == "group")
-                this.data.groups.push(data);
-            else if (category == "author")
-                this.data.authors.push(data);
-            else
-                this.data[category] = data;
-            this.validate();
-        };
-        MangadexDataAggregator.prototype.validate = function () {
-            // call this.callback if this.data has all necessary categories
-            if (this.data.chapter == undefined)
-                return;
-            if (this.data.manga == undefined)
-                return;
-            if (xlinks_api.config.mangadex.show_group && this.data.groups.length < this.group_num)
-                return;
-            if (xlinks_api.config.mangadex.show_author) {
-                let has_authors = 0;
-                for (let i = this.data.authors.length - 1; i >= 0; i--) {
-                    if (this.data.author_ids.indexOf(this.data.authors[i].id) != -1)
-                        has_authors++;
-                }
-                if (has_authors < this.author_num)
+        class MangadexDataAggregator {
+            constructor(final_callback) {
+                this.callback = final_callback;
+                this.context = null;
+                this.group_num = 0;
+                this.author_num = 1;
+                this.artist_num = 1;
+                this.data = {
+                    groups: Array(),
+                    authors: Array(),
+                    author_ids: Array(),
+                    artist_ids: Array(),
+                };
+            }
+
+            add_author_id(id) {
+                this.data.author_ids.push(id);
+            }
+
+            add_artist_id(id) {
+                this.data.artist_ids.push(id);
+            }
+
+            add_data(category, data) {
+                if (category == "group")
+                    this.data.groups.push(data);
+                else if (category == "author")
+                    this.data.authors.push(data);
+                else
+                    this.data[category] = data;
+                this.validate();
+            }
+
+            validate() {
+                // call this.callback if this.data has all necessary categories
+                if (this.data.chapter == undefined)
                     return;
-            }
-            if (xlinks_api.config.mangadex.show_artist) {
-                let has_artists = 0;
-                for (let i = this.data.authors.length - 1; i >= 0; i--) {
-                    if (this.data.artist_ids.indexOf(this.data.authors[i].id) != -1)
-                        has_artists++;
-                }
-                if (has_artists < this.artist_num)
+                if (this.data.manga == undefined)
                     return;
-            }
-
-            // console.log(["valid data", this.context, this.group_num, this.author_num, this.artist_num, this.data]);
-
-            // make a usable object out of the categories
-            var aggdata = {};
-            var template = "";
-            var data = this.data;
-
-            data.final = {
-                manga_lang: "",
-                author: "",
-                manga: null,
-                volume: "",
-                chapter: "",
-                title: "",
-                pages: "",
-                group: "",
-            };
-
-            // aggdata.title
-            // "${manga_lang} ${author} ${manga} ${volume} ${chapter} ${title} ${pages} ${group}"
-            if (xlinks_api.config.mangadex.show_orig_lang && !xlinks_api.config.mangadex.use_flags && data.manga.originalLanguage)
-                template += "${manga_lang} ";
-            if ((xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist) && data.authors.length > 0 && this.author_num + this.artist_num > 0)
-                template += "${author} ";
-            if (data.manga.title || data.manga.altTitles)
-                template += "${manga} ";
-            if (xlinks_api.config.mangadex.show_volume && data.chapter.volume)
-                template += "${volume} ";
-            if (data.chapter.chapter)
-                template += "${chapter} ";
-            if (xlinks_api.config.mangadex.show_ch_title && data.chapter.title)
-                template += "${title} ";
-            if (xlinks_api.config.mangadex.show_pages && data.chapter.pages)
-                template += "${pages} ";
-            if (xlinks_api.config.mangadex.show_group && data.groups.length > 0)
-                template += "${group}";
-
-            if (data.manga.originalLanguage)
-                data.final.manga_lang = "["+data.manga.originalLanguage+"]";
-
-            if (data.authors.length > 0) {
-                var author_names = Array();
-                for (let i = 0; i < data.authors.length; i++) {
-                    if (xlinks_api.config.mangadex.show_author && data.author_ids.indexOf(data.authors[i].id) != -1 && author_names.indexOf(data.authors[i].name) == -1) {
-                        author_names.push(data.authors[i].name);
+                if (xlinks_api.config.mangadex.show_group && this.data.groups.length < this.group_num)
+                    return;
+                if (xlinks_api.config.mangadex.show_author) {
+                    let has_authors = 0;
+                    for (let i = this.data.authors.length - 1; i >= 0; i--) {
+                        if (this.data.author_ids.indexOf(this.data.authors[i].id) != -1)
+                            has_authors++;
                     }
-                    if (xlinks_api.config.mangadex.show_artist && data.artist_ids.indexOf(data.authors[i].id) != -1 && author_names.indexOf(data.authors[i].name) == -1) {
-                        author_names.push(data.authors[i].name);
-                    }
+                    if (has_authors < this.author_num)
+                        return;
                 }
-                data.final.author = "[" + author_names.join(", ") + "]";
-            }
-
-            if (xlinks_api.config.mangadex.custom_title) {
-                var title_order = xlinks_api.config.mangadex.title_search_order.replace(/\s+/g, "").split(",");
-                var title_found = false;
-                for (let i = 0; i < title_order.length; i++) {
-                    if (title_found) break;
-                    lcode = title_order[i];
-                    lcode = lcode.replace(/orig/i, data.manga.originalLanguage);
-                    if (data.manga.title[lcode] !== undefined) {
-                        data.final.manga = data.manga.title[lcode];
-                        break;
+                if (xlinks_api.config.mangadex.show_artist) {
+                    let has_artists = 0;
+                    for (let i = this.data.authors.length - 1; i >= 0; i--) {
+                        if (this.data.artist_ids.indexOf(this.data.authors[i].id) != -1)
+                            has_artists++;
                     }
-                    else {
-                        // altTitles is an array of objects with each single entries
-                        for (var j = 0; j < data.manga.altTitles.length; j++) {
-                            if (data.manga.altTitles[j][lcode] !== undefined) {
-                                data.final.manga = data.manga.altTitles[j][lcode];
-                                title_found = true;
-                                break;
+                    if (has_artists < this.artist_num)
+                        return;
+                }
+
+                // console.log(["valid data", this.context, this.group_num, this.author_num, this.artist_num, this.data]);
+
+                // make a usable object out of the categories
+                var aggdata = {};
+                var template = "";
+                var data = this.data;
+
+                data.final = {
+                    manga_lang: "",
+                    author: "",
+                    manga: null,
+                    volume: "",
+                    chapter: "",
+                    title: "",
+                    pages: "",
+                    group: "",
+                };
+
+                // aggdata.title
+                // "${manga_lang} ${author} ${manga} ${volume} ${chapter} ${title} ${pages} ${group}"
+                if (xlinks_api.config.mangadex.show_orig_lang && !xlinks_api.config.mangadex.use_flags && data.manga.originalLanguage)
+                    template += "${manga_lang} ";
+                if ((xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist) && data.authors.length > 0 && this.author_num + this.artist_num > 0)
+                    template += "${author} ";
+                if (data.manga.title || data.manga.altTitles)
+                    template += "${manga} ";
+                if (xlinks_api.config.mangadex.show_volume && data.chapter.volume)
+                    template += "${volume} ";
+                if (data.chapter.chapter)
+                    template += "${chapter} ";
+                if (xlinks_api.config.mangadex.show_ch_title && data.chapter.title)
+                    template += "${title} ";
+                if (xlinks_api.config.mangadex.show_pages && data.chapter.pages)
+                    template += "${pages} ";
+                if (xlinks_api.config.mangadex.show_group && data.groups.length > 0)
+                    template += "${group}";
+
+                if (data.manga.originalLanguage)
+                    data.final.manga_lang = "["+data.manga.originalLanguage+"]";
+
+                if (data.authors.length > 0) {
+                    var author_names = Array();
+                    for (let i = 0; i < data.authors.length; i++) {
+                        if (xlinks_api.config.mangadex.show_author && data.author_ids.indexOf(data.authors[i].id) != -1 && author_names.indexOf(data.authors[i].name) == -1) {
+                            author_names.push(data.authors[i].name);
+                        }
+                        if (xlinks_api.config.mangadex.show_artist && data.artist_ids.indexOf(data.authors[i].id) != -1 && author_names.indexOf(data.authors[i].name) == -1) {
+                            author_names.push(data.authors[i].name);
+                        }
+                    }
+                    data.final.author = "[" + author_names.join(", ") + "]";
+                }
+
+                if (xlinks_api.config.mangadex.custom_title) {
+                    var title_order = xlinks_api.config.mangadex.title_search_order.replace(/\s+/g, "").split(",");
+                    var title_found = false;
+                    for (let i = 0; i < title_order.length; i++) {
+                        if (title_found) break;
+                        lcode = title_order[i];
+                        lcode = lcode.replace(/orig/i, data.manga.originalLanguage);
+                        if (data.manga.title[lcode] !== undefined) {
+                            data.final.manga = data.manga.title[lcode];
+                            break;
+                        }
+                        else {
+                            // altTitles is an array of objects with each single entries
+                            for (var j = 0; j < data.manga.altTitles.length; j++) {
+                                if (data.manga.altTitles[j][lcode] !== undefined) {
+                                    data.final.manga = data.manga.altTitles[j][lcode];
+                                    title_found = true;
+                                    break;
+                                }
                             }
                         }
                     }
                 }
-            }
-            if (!data.final.manga) {
-                // take the default title
-                let keys = Object.keys(data.manga.title);
-                if (keys.length)
-                    data.final.manga = data.manga.title[keys[0]];
-            }
-
-            if (data.chapter.volume)
-                data.final.volume = "vol. " + data.chapter.volume;
-            if (data.chapter.chapter)
-                data.final.chapter = "ch. " + data.chapter.chapter;
-            if (data.chapter.title)
-                data.final.title = '- "' + data.chapter.title + '"';
-            if (data.chapter.pages)
-                data.final.pages = "(" + data.chapter.pages + "p)";
-            if (xlinks_api.config.mangadex.show_group && data.groups.length > 0) {
-                combined_group_name = "";
-                for (let i = 0; i < data.groups.length; i++) {
-                    combined_group_name += data.groups[i].name + ', '
+                if (!data.final.manga) {
+                    // take the default title
+                    let keys = Object.keys(data.manga.title);
+                    if (keys.length)
+                        data.final.manga = data.manga.title[keys[0]];
                 }
-                combined_group_name = combined_group_name.replace(/, $/, "");
-                data.final.group = "[" + combined_group_name + "]";
-                if (combined_group_name == "null")
-                    console.log(["null group name:", data.groups]);
-            }
 
-            aggdata.title = interpolate(template, data.final);
-            aggdata.title = aggdata.title.replace(/^\s+/, "");
-            aggdata.title = aggdata.title.replace(/\s$/, "");
-            aggdata.title = aggdata.title.replace(/\s+/g, " ");
+                if (data.chapter.volume)
+                    data.final.volume = "vol. " + data.chapter.volume;
+                if (data.chapter.chapter)
+                    data.final.chapter = "ch. " + data.chapter.chapter;
+                if (data.chapter.title)
+                    data.final.title = '- "' + data.chapter.title + '"';
+                if (data.chapter.pages)
+                    data.final.pages = "(" + data.chapter.pages + "p)";
+                if (xlinks_api.config.mangadex.show_group && data.groups.length > 0) {
+                    combined_group_name = "";
+                    for (let i = 0; i < data.groups.length; i++) {
+                        combined_group_name += data.groups[i].name + ', '
+                    }
+                    combined_group_name = combined_group_name.replace(/, $/, "");
+                    data.final.group = "[" + combined_group_name + "]";
+                    if (combined_group_name == "null")
+                        console.log(["null group name:", data.groups]);
+                }
 
-            this.callback(null, aggdata);
+                aggdata.title = interpolate(template, data.final);
+                aggdata.title = aggdata.title.replace(/^\s+/, "");
+                aggdata.title = aggdata.title.replace(/\s$/, "");
+                aggdata.title = aggdata.title.replace(/\s+/g, " ");
+
+                this.callback(null, aggdata);
 
 
-            if (xlinks_api.config.mangadex.show_icon) {
-                // modify the [MD] tag into an icon or flag
-                // apply a style if the tag filter is tripped
-                let icon_name = "site_MD";
-                let apply_style = false;
+                if (xlinks_api.config.mangadex.show_icon) {
+                    // modify the [MD] tag into an icon or flag
+                    // apply a style if the tag filter is tripped
+                    let icon_name = "site_MD";
+                    let apply_style = false;
 
-                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[data.manga.originalLanguage] !== undefined)
-                    icon_name = lang_to_flag[data.manga.originalLanguage]
+                    if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[data.manga.originalLanguage] !== undefined)
+                        icon_name = lang_to_flag[data.manga.originalLanguage]
 
-                // search for tags matching the tag filter
-                if (xlinks_api.config.mangadex.tag_filter.trim() !== "") {
-                    // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
-                    let tag_array = xlinks_api.config.mangadex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+                    // search for tags matching the tag filter
+                    if (xlinks_api.config.mangadex.tag_filter.trim() !== "") {
+                        // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
+                        let tag_array = xlinks_api.config.mangadex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
 
-                    for (let i = 0; i < data.manga.tags.length; i++) {
-                        if (data.manga.tags[i].attributes.name.en !== undefined) {
-                            if (tag_array.indexOf(data.manga.tags[i].attributes.name.en.toLowerCase()) >= 0) {
-                                apply_style = true;
-                                break;
+                        for (let i = 0; i < data.manga.tags.length; i++) {
+                            if (data.manga.tags[i].attributes.name.en !== undefined) {
+                                if (tag_array.indexOf(data.manga.tags[i].attributes.name.en.toLowerCase()) >= 0) {
+                                    apply_style = true;
+                                    break;
+                                }
                             }
                         }
+                        // console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
                     }
-                    // console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
-                }
 
-                replace_icon(this.context, "mangadex", icon_name, apply_style);
+                    replace_icon(this.context, "mangadex", icon_name, apply_style);
+                }
             }
-        };
+        }
 
         var md_aggregators = {};
 
