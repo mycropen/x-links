@@ -1169,10 +1169,19 @@
 
         // comick.io
         // has API -> DataAggregator?
-
+        var ck_generic_setup_xhr = function (callback) {}
+        var ck_generic_parse_response = function (xhr, callback) {}
+        var ck_ch_url_get_info = function (url, callback) {}
+        var ck_ch_url_info_to_data = function (url_info, callback) {}
+        var ck_create_actions = function (data, info, callback, retry = false) {}
 
 
         // bato.to
+        var bt_generic_setup_xhr = function (callback) {}
+        var bt_generic_parse_response = function (xhr, callback) {}
+        var bt_ch_url_get_info = function (url, callback) {}
+        var bt_ch_url_info_to_data = function (url_info, callback) {}
+        var bt_create_actions = function (data, info, callback, retry = false) {}
 
 
 
@@ -1327,14 +1336,14 @@
                         {
                             group: "comick",
                             namespace: "comick",
-                            type: "chapter",
+                            type: "generic",
                             count: 1,
                             concurrent: 1,
                             delay_okay: 100,
                             delay_error: 5000,
                             functions: {
-                                setup_xhr: ck_chapter_setup_xhr,
-                                parse_response: ck_chapter_parse_response
+                                setup_xhr: ck_generic_setup_xhr,
+                                parse_response: ck_generic_parse_response
                             },
                         },
                         {
