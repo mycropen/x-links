@@ -258,7 +258,7 @@
             }
         };
 
-        var aggregators = {};
+        var md_aggregators = {};
         
         var replace_icon = function (ch_id, site, icon_name, apply_style) {
             // url_info.icon was set to a placeholder if use_flags is set
@@ -419,7 +419,7 @@
                 callback("Invalid response context");
                 return;
             }
-            var aggregator = aggregators[ctx[1]];
+            var aggregator = md_aggregators[ctx[1]];
 
             jsdata = xlinks_api.parse_json(xhr.responseText, null);
             if (jsdata == null || jsdata.data == undefined || jsdata.data.attributes == undefined) {
@@ -591,7 +591,7 @@
             };
 
             xlinks_api.cache_set("group_" + jsdata.data.id, data, 7 * xlinks_api.ttl_1_day);
-            aggregators[ctx[1]].add_data("group", data);
+            md_aggregators[ctx[1]].add_data("group", data);
 
             callback(null, [data]);
         };
@@ -623,7 +623,7 @@
             };
 
             xlinks_api.cache_set("author_" + jsdata.data.id, data, 7 * xlinks_api.ttl_1_day);
-            aggregators[ctx[1]].add_data("author", data);
+            md_aggregators[ctx[1]].add_data("author", data);
 
             callback(null, [data]);
         };
@@ -663,7 +663,7 @@
             var ctx = url_info.context.split("_");
             var aggregator = new DataAggregator(callback);
             aggregator.context = ctx[1];
-            aggregators[ctx[1]] = aggregator;
+            md_aggregators[ctx[1]] = aggregator;
 
             var chdata = xlinks_api.cache_get(url_info.id, null);
             if (chdata !== null) {
@@ -760,19 +760,19 @@
                 aggregator.group_num = has_groups;
                 aggregator.validate();
             }
-        }
+        };
 
         var md_create_actions = function (data, url_info, callback, retry = false) {
-            // console.log(["md_create_actions", data, url_info, callback, aggregators[url_info.id]]);
+            // console.log(["md_create_actions", data, url_info, callback, md_aggregators[url_info.id]]);
 
             // [id, base_title]
-            var title_data = [aggregators[url_info.id].data.manga.id, aggregators[url_info.id].data.final.manga];
+            var title_data = [md_aggregators[url_info.id].data.manga.id, md_aggregators[url_info.id].data.final.manga];
 
             // [[id, name], [id, name], ...]
             var group_data = Array();
-            if (aggregators[url_info.id].data.groups.length > 0) {
-                for (let i = 0; i < aggregators[url_info.id].data.groups.length; i++) {
-                    group_data.push([aggregators[url_info.id].data.groups[i].id, aggregators[url_info.id].data.groups[i].name]);
+            if (md_aggregators[url_info.id].data.groups.length > 0) {
+                for (let i = 0; i < md_aggregators[url_info.id].data.groups.length; i++) {
+                    group_data.push([md_aggregators[url_info.id].data.groups[i].id, md_aggregators[url_info.id].data.groups[i].name]);
                 }
             }
 
@@ -780,16 +780,16 @@
             var author_data = Array();
             var added_author_ids = Array();
             var mangadata;
-            if (aggregators[url_info.id].data.authors.length > 0) {
-                for (let i = 0; i < aggregators[url_info.id].data.authors.length; i++) {
-                    if (added_author_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1) continue;
+            if (md_aggregators[url_info.id].data.authors.length > 0) {
+                for (let i = 0; i < md_aggregators[url_info.id].data.authors.length; i++) {
+                    if (added_author_ids.indexOf(md_aggregators[url_info.id].data.authors[i].id) != -1) continue;
                     let roles = Array();
-                    if (aggregators[url_info.id].data.author_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1)
+                    if (md_aggregators[url_info.id].data.author_ids.indexOf(md_aggregators[url_info.id].data.authors[i].id) != -1)
                         roles.push("Author");
-                    if (aggregators[url_info.id].data.artist_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1)
+                    if (md_aggregators[url_info.id].data.artist_ids.indexOf(md_aggregators[url_info.id].data.authors[i].id) != -1)
                         roles.push("Artist");
-                    author_data.push([aggregators[url_info.id].data.authors[i].id, aggregators[url_info.id].data.authors[i].name, roles]);
-                    added_author_ids.push(aggregators[url_info.id].data.authors[i].id);
+                    author_data.push([md_aggregators[url_info.id].data.authors[i].id, md_aggregators[url_info.id].data.authors[i].name, roles]);
+                    added_author_ids.push(md_aggregators[url_info.id].data.authors[i].id);
                 }
             }
             else {
@@ -797,10 +797,10 @@
                 var author_ids = Array();
                 var artist_ids = Array();
                 var author_list = Array();
-                if (aggregators[url_info.id].data.manga.relationships)
-                    mangadata = aggregators[url_info.id].data.manga;
+                if (md_aggregators[url_info.id].data.manga.relationships)
+                    mangadata = md_aggregators[url_info.id].data.manga;
                 else
-                    mangadata = xlinks_api.cache_get("manga_" + aggregators[url_info.id].data.manga.id);
+                    mangadata = xlinks_api.cache_get("manga_" + md_aggregators[url_info.id].data.manga.id);
                 if (mangadata !== null && mangadata.relationships) {
                     for (let i = 0; i < mangadata.relationships.length; i++) {
                         if (mangadata.relationships[i].type != "author" && mangadata.relationships[i].type != "artist") continue;
@@ -822,14 +822,14 @@
                     }
                 }
                 else {
-                    // console.log(["No cached manga data with relationships:", aggregators[url_info.id].data.manga.id, mangadata]);
+                    // console.log(["No cached manga data with relationships:", md_aggregators[url_info.id].data.manga.id, mangadata]);
                 }
             }
             if (author_data.length == 0 && !retry) {
                 // console.log("No authors found. Initiating new manga data request.");
                 let manga_url_info = {
-                    id: aggregators[url_info.id].data.manga.id,
-                    context: "manga_" + aggregators[url_info.id].data.chapter.id,
+                    id: md_aggregators[url_info.id].data.manga.id,
+                    context: "manga_" + md_aggregators[url_info.id].data.chapter.id,
                     type: "manga",
                     includes: ["author", "artist"],
                 };
@@ -847,10 +847,10 @@
             var tag_data = Array();
             var tag_groups = {};
             // console.log([]);
-            if (aggregators[url_info.id].data.manga.tags)
-                mangadata = aggregators[url_info.id].data.manga;
+            if (md_aggregators[url_info.id].data.manga.tags)
+                mangadata = md_aggregators[url_info.id].data.manga;
             else {
-                let cached_mangadata = xlinks_api.cache_get("manga_" + aggregators[url_info.id].data.manga.id);
+                let cached_mangadata = xlinks_api.cache_get("manga_" + md_aggregators[url_info.id].data.manga.id);
                 if (cached_mangadata.tags)
                     mangadata = cached_mangadata;
                 else
