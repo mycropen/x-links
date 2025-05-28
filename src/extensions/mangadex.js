@@ -63,12 +63,19 @@
             "id": "lang_id",
             "th": "lang_th",
         };
+
+        var site_short = {
+            "mangadex": "md",
+            "dynasty": "ds",
+            "bato": "bt",
+            "comick": "ck",
+        }
         
         var replace_icon = function (ch_id, site, icon_name, apply_style) {
             // url_info.icon was set to a placeholder if use_flags is set
             // this replaces it with the real icon (e.g. a flag) after the manga data was acquired
             // also applies a style to the icon if apply_style is true
-            // site must be either "dynasty" or "mangadex" because it's directly used as the attribute name of xlinks_api.config
+            // site must be either "mangadex", "dynasty" or "bato" because it's directly used as the attribute name of xlinks_api.config
             var style_str = "";
 
             if (apply_style) {
@@ -90,7 +97,7 @@
             }
             // console.log([ch_id, apply_style, xlinks_api.config[site].tag_filter_style, style_str]);
 
-            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+ch_id+"]");
+            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+site_short[site]+"-"+ch_id+"]");
             for (let i = 0; i < nodes.length; i++) {
                 nodes[i].setAttribute("data-xl-site-tag-icon", icon_name);
 
@@ -655,7 +662,7 @@
                 // hack a way to use the site icon as a language flag
                 // The MangadexDataAggregator will decide if it's an icon or flag and how to style it
                 if (xlinks_api.config.mangadex.show_icon)
-                    url_info.icon = "replaceme-"+url_info.id;
+                    url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
 
                 callback(null, url_info);
             }
@@ -1056,7 +1063,7 @@
 
                 if (xlinks_api.config.dynasty.show_icon) {
                     if (xlinks_api.config.dynasty.tag_filter.trim() !== "")
-                        url_info.icon = "replaceme-"+url_info.id;
+                        url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
                     else
                         url_info.icon = "site_DS";
                 }
@@ -1174,20 +1181,515 @@
 
 
         // comick.io
-        // has API -> DataAggregator?
-        var ck_generic_setup_xhr = function (callback) {}
-        var ck_generic_parse_response = function (xhr, callback) {}
-        var ck_ch_url_get_info = function (url, callback) {}
-        var ck_ch_url_info_to_data = function (url_info, callback) {}
-        var ck_create_actions = function (data, info, callback, retry = false) {}
+        // class ComickDataAggregator {
+
+        // }
+
+        // var ck_generic_setup_xhr = function (callback) {
+
+        // };
+        // var ck_generic_parse_response = function (xhr, callback) {
+
+        // };
+
+        // var ck_ch_url_get_info = function (url, callback) {
+
+        // };
+        // var ck_ch_url_info_to_data = function (url_info, callback) {
+
+        // };
+
+        // var ck_create_actions = function (data, info, callback, retry = false) {
+
+        // };
 
 
         // bato.to
-        var bt_generic_setup_xhr = function (callback) {}
-        var bt_generic_parse_response = function (xhr, callback) {}
-        var bt_ch_url_get_info = function (url, callback) {}
-        var bt_ch_url_info_to_data = function (url_info, callback) {}
-        var bt_create_actions = function (data, info, callback, retry = false) {}
+        class BatoDataAggregator {
+            constructor(final_callback) {
+                this.callback = final_callback;
+                this.context = null;
+                this.data = {
+                    series: {
+                        title: "",
+                        language: "",
+                        url: "",
+                        genres: [],
+                        // [[author, url], [author, url], ...]
+                        authors: Array(),
+                    },
+                    chapter: {
+                        series_id: "",
+                        num: "",    // e.g. "Volume 5 Chapter 21.5"
+                        title: "",  // e.g. "Extras: Volume 4 & Twitter Part 4"
+                        // pages: 0,
+                    }
+                };
+            }
+
+            add_data(category, data) {
+                this.data[category] = data;
+                this.validate();
+            }
+
+            validate() {
+                if (this.data.series.title == "") return;
+                if (this.data.chapter.num == "") return;
+
+                // make a usable object out of the categories
+                var aggdata = {
+                    language: "",
+                    author: "",
+                    series: "",
+                    chapter_num: "",
+                    chapter_title: "",
+                    // pages: "",
+                    title: "",
+                };
+                var template = "";
+
+                // "${language} ${author} ${series} ${chapter_num} ${chapter_title} ${pages} ${group}"
+                if (xlinks_api.config.bato.show_orig_lang && !xlinks_api.config.bato.use_flags && this.data.series.language)
+                    template += "${language} ";
+                if (xlinks_api.config.bato.show_author && this.data.series.authors.length > 0)
+                    template += "${author} ";
+                if (this.data.series.title)
+                    template += "${series} ";
+                if (this.data.chapter.num)
+                    template += "${chapter_num} ";
+                if (xlinks_api.config.bato.show_ch_title && this.data.chapter.title)
+                    template += "${chapter_title} ";
+                // if (xlinks_api.config.bato.show_pages && this.data.chapter.pages)
+                //     template += "${pages} ";
+
+                if (this.data.series.authors.length > 0) {
+                    let author_names = Array();
+                    for (let i = 0; i < this.data.series.authors.length; i++) {
+                        author_names.push(this.data.series.authors[i][0]);
+                    }
+                    aggdata.author = "[" + author_names.join(", ") + "]";
+                }
+
+                if (this.data.series.title)    aggdata.series        = this.data.series.title;
+                if (this.data.chapter.num)     aggdata.chapter_num   = this.data.chapter.num;
+                if (this.data.chapter.title)   aggdata.chapter_title = '- "' + this.data.chapter.title + '"';
+                if (this.data.series.language) aggdata.language      = '[' + this.data.series.language + ']';
+                if (this.data.chapter.pages)   aggdata.pages         = "(" + this.data.chapter.pages + "p)";
+
+                aggdata.title = interpolate(template, aggdata);
+                aggdata.title = aggdata.title.replace(/^\s+/, "");
+                aggdata.title = aggdata.title.replace(/\s$/, "");
+                aggdata.title = aggdata.title.replace(/\s+/g, " ");
+
+                this.callback(null, aggdata);
+
+                if (xlinks_api.config.bato.show_icon) {
+                    // modify the [MD] tag into an icon or flag
+                    // apply a style if the tag filter is tripped
+                    let icon_name = "site_BT";
+                    let apply_style = false;
+
+                    if (xlinks_api.config.bato.show_orig_lang && xlinks_api.config.bato.use_flags && lang_to_flag[this.data.series.language] !== undefined)
+                        icon_name = lang_to_flag[this.data.series.language]
+
+                    // search for tags matching the tag filter
+                    if (xlinks_api.config.bato.tag_filter.trim() !== "") {
+                        // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
+                        let tag_array = xlinks_api.config.bato.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+
+                        for (let i = 0; i < this.data.series.genres.length; i++) {
+                            if (tag_array.indexOf(this.data.series.genres[i].toLowerCase()) >= 0) {
+                                apply_style = true;
+                                break;
+                            }
+                        }
+                        // console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
+                    }
+
+                    replace_icon(this.context, "bato", icon_name, apply_style);
+                }
+            }
+        }
+
+        var bt_aggregators = {};
+
+        var bt_v3_lang_short = {
+            "Japanese": "jp",
+            "Korean": "kr",
+            "Chinese": "zh",
+            "Chinese (繁)": "zh",
+            "Chinese (粵)": "zh",
+            "Indonesian": "id",
+            "Thai": "th",
+        };
+
+        var bt_get_data = function (key) {
+            var data = xlinks_api.cache_get("bt_" + key);
+            return data;
+        };
+        var bt_set_data = function (key, data, err_callback) {
+            var lifetime = 7 * xlinks_api.ttl_1_day;
+            xlinks_api.cache_set("bt_" + key, data, lifetime);
+            if (err_callback !== null) err_callback(null);
+        };
+
+        var bt_chapter_setup_xhr = function (callback) {
+            var info = this.infos[0];
+
+            // context should be "chapter_{id}"
+            var ctx = null;
+            if (info.context !== undefined) ctx = info.context;
+
+            if (info.bt_version == 2) {
+                callback(null, {
+                    method: "GET",
+                    url: "https://bato.to/chapter/"+info.id+"/1",
+                    context: [2, "chapter", ctx],
+                });
+            } else if (info.bt_version == 3) {
+                callback(null, {
+                    method: "GET",
+                    url: "https://bato.to/title/"+info.series_id+"/"+info.id+"?load=0",
+                    context: [3, "chapter", ctx],
+                });
+            } else {
+                console.error(['bt_chapter_setup_xhr: Unsupported bt_version', info]);
+            }
+        };
+        var bt_series_setup_xhr = function (callback) {
+            var info = this.infos[0];
+
+            // context should be "chapter_{id}"
+            var ctx = null;
+            if (info.context !== undefined) ctx = info.context;
+            callback(null, {
+                method: "GET",
+                url: "https://bato.to/title/"+info.series_id,
+                context: [3, "series", ctx],
+            });
+        };
+        var bt_generic_parse_response = function (xhr, callback) {
+            var bt_version = xhr.context[0];
+            var resp_type = xhr.context[1];
+
+            if (resp_type == "chapter") {
+                if      (bt_version == 2) bt_chapter_v2_parse_response(xhr, callback);
+                else if (bt_version == 3) bt_chapter_v3_parse_response(xhr, callback);
+                else console.error(['bt_generic_parse_response: Unsupported chapter bt_version', xhr]);
+            } else if (resp_type = "series") {
+                if (bt_version == 3) bt_series_v3_parse_response(xhr, callback);
+                else console.error(['bt_generic_parse_response: Unsupported series bt_version', xhr]);
+            } else {
+                console.error(['bt_generic_parse_response: Unsupported response type', xhr]);
+            }
+        }
+
+        var bt_chapter_v2_parse_response = function (xhr, callback) {
+            var ctx = xhr.context[2];
+            var chapter_id = ctx.split('_')[1];
+
+            var html = xlinks_api.parse_html(xhr.responseText, null);
+
+            var ch_data = {
+                series_id: "",
+                num: "",
+                title: "",
+                // pages: 0,
+            };
+
+            // ch_data.pages = $$('img.page-img', html).length;
+            // if (ch_data.pages == 0) ch_data.pages = $$('select optgroup[label="Page"] option', html).length;
+
+            var series_a = $('h3.nav-title a', html);
+            if (series_a !== null) {
+                // "https://bato.to/series/137465" or just "/series/137465"
+                let series_a_split = series_a.href.split('/');
+                ch_data.series_id = series_a_split[series_a_split.length - 1];
+
+                // make the series "API" request
+                url_info = {
+                    bt_version: 3,
+                    id: chapter_id,
+                    series_id: ch_data.series_id,
+                    site: "bato",
+                    type: "chapter",
+                    tag: "BT",
+                    context: ctx,
+                }
+
+                xlinks_api.request("bato", "series", url_info.series_id, url_info,
+                    (err, data) => {
+                        if (err !== null) return;
+                        bt_set_data("series_"+url_info.series_id, data, (err) => {});
+                        let aggregator = bt_aggregators[url_info.id];
+                        aggregator.add_data("series", data);
+                    }
+                );
+            } else console.error("bt_chapter_v2_parse_response: not found: 'h3.nav-title a'");
+
+            // get chapter title from the dropdown
+            var ch_option = $('select optgroup option[value="'+chapter_id+'"]', html);
+            if (ch_option !== null) {
+                // ch_option.innerText examples:
+                //      "Volume 1 Chapter 1\n           : You’re a Bad Girl, Huh?\n                  "
+                //      "Volume 5 Chapter 21.5\n           : Extras: Volume 4 & Twitter Part 4\n                  "
+                //      "Chapter 1\n                  "
+                // they always end on an extra \n and a bunch of spaces
+                let title_split = ch_option.innerText.split('\n');
+
+                if (title_split.length > 1) ch_data.num   = title_split[0].trim();
+                if (title_split.length > 2) ch_data.title = title_split[1].trim();
+
+                if (ch_data.title.startsWith(': ')) ch_data.title = ch_data.title.substring(2);
+            } else console.error("bt_chapter_v2_parse_response: not found: 'select optgroup option[value=\""+chapter_id+"\"]'");
+
+            callback(null, [ch_data]);
+        };
+        var bt_chapter_v3_parse_response = function (xhr, callback) {
+            var ctx = xhr.context[2];
+            var chapter_id = ctx.split('_')[1];
+
+            var html = xlinks_api.parse_html(xhr.responseText, null);
+            // console.log(["bt_chapter_v3_parse_response", chapter_id, html]);
+
+            var ch_data = {
+                series_id: "",
+                num: "",
+                title: "",
+                // pages: 0,
+            };
+
+            // ch_data.pages = $$('div[name="image-item"]', html).length;
+            // console.log(["bt_chapter_v3_parse_response", "pages", $$('div[name="image-item"]', html)]);
+
+            var series_a = $('h3 a[href*="/title/"]', html);
+            if (series_a !== null) {
+                var title_m = /title\/(\d+)/.exec(series_a.href);
+                if (title_m) ch_data.series_id = title_m[1];
+            }
+
+            var ch_option = $('select optgroup[label="Chapters"] option[key="'+chapter_id+'"]', html);
+            // console.log(["bt_chapter_v3_parse_response", ch_option]);
+            if (ch_option !== null) {
+                // ch_option.innerText examples:
+                //      "Volume 5 Chapter 21.5 : Extras: Volume 4 & Twitter Part 4"
+                //      "Volume 1 Chapter 1 : You’re a Bad Girl, Huh?"
+                //      "Chapter 1"
+                let title_split = ch_option.innerText.split(' : ');
+
+                if (title_split.length > 0) ch_data.num   = title_split[0].trim();
+                if (title_split.length > 1) ch_data.title = title_split[1].trim();
+            } else console.error("bt_chapter_v3_parse_response: not found: 'select optgroup[label=\"Chapters\"] option[key=\""+chapter_id+"\"]'");
+
+            callback(null, [ch_data]);
+        };
+        var bt_series_v3_parse_response = function (xhr, callback) {
+            const base_url = "https://bato.to";
+
+            var ctx = xhr.context[2];
+            var chapter_id = ctx.split('_')[1];
+            // console.log(["bt_series_v3_parse_response", xhr]);
+
+            var html = xlinks_api.parse_html(xhr.responseText, null);
+
+            var series_data = {
+                title: "",
+                language: "",
+                url: xhr.finalUrl,
+                genres: [],
+                authors: [],
+            };
+
+
+            var series_a = $('h3 a[href*="/title/"]', html);
+            if (series_a !== null) series_data.title = series_a.innerText;
+
+
+            var language_spans = $$('div.whitespace-nowrap span', html);
+            // console.log(["bt_series_v3_parse_response", "language_spans:", language_spans]);
+            if (language_spans.length > 0) {
+                // [🇬🇧, English, Tr From, 🇨🇳, Chinese]
+                let orig_lang = language_spans[language_spans.length - 1].innerText;
+                if (bt_v3_lang_short[orig_lang] !== undefined) series_data.language = bt_v3_lang_short[orig_lang];
+            } else console.error("bt_series_v3_parse_response: not found: 'div.whitespace-nowrap span'");
+
+
+            // <div class="flex items-center flex-wrap">
+            //     <b class="hidden md:inline-block mr-2 text-base-content/50">Genres:</b>
+            //     <span>
+            //         <span class="font-bold">Manhua</span>
+            //         <span class="text-base-content/80 px-1">,</span>
+            //     </span>
+            //     <span>
+            //         <span class="font-bold">Webtoon</span>
+            //         <span class="text-base-content/80 px-1">,</span>
+            //     </span>
+
+            // Maybe there's smart jquery that find this thing in one line, but I don't know it
+            var genre_list_candidates_b = $$('div.flex b', html);
+            var genre_list_div = null;
+            var genre_spans = [];
+
+            for (var i = 0; i < genre_list_candidates_b.length; i++) {
+                if (genre_list_candidates_b[i].innerText.includes('Genres:')) {
+                    genre_list_div = genre_list_candidates_b[i].parentNode;
+                    break;
+                }
+            }
+
+            if (genre_list_div !== null)
+                genre_spans = $$('span span:nth-child(1)', genre_list_div);
+            else console.error("bt_series_v3_parse_response: not found: 'span span:nth-child(1)'");
+
+            for (var i = 0; i < genre_spans.length; i++) {
+                series_data.genres.push(genre_spans[i].innerText);
+            }
+
+
+            // authors
+            //  [[author, url], [author, url], ...]
+            var author_a_list = $$('div.mt-3 div.mt-2 a[href*="v3x-search"]', html);
+            for (var i = 0; i < author_a_list.length; i++) {
+                // the .href attribute gets expanded automatically with the current domain
+                series_data.authors.push([author_a_list[i].innerText, base_url+author_a_list[i].getAttribute('href')]);
+            }
+
+
+            // console.log(["bt_series_v3_parse_response", series_data]);
+            callback(null, [series_data]);
+        };
+
+        var bt_ch_url_get_info = function (url, callback) {
+            let series_id, chapter_id;
+
+            // https://bato.to/chapter/3362345
+            // no series_id in the url
+            let m_v2 = /(https?:\/*)?(?:www\.)?bato.to\/chapter\/(\d+)/i.exec(url);
+            // https://bato.to/title/137465-destroy-it-all-and-love-me-in-hell/3362345-vol_5-ch_21.5
+            // https://bato.to/title/{series_id}-.../{chapter_id}-...
+            let m_v3 = /(https?:\/*)?(?:www\.)?bato.to\/title\/(\d+)-[^\/]+\/(\d+)/i.exec(url);
+
+            // console.log(["bt_ch_url_get_info", url, m_v2, m_v3]);
+
+            if (m_v2 !== null) {
+                // get the chapter html first and figure out the series url from there
+                var url_info = {
+                    bt_version: 2,
+                    id: m_v2[2],
+                    site: "bato",
+                    type: "chapter",
+                    tag: "BT",
+                    context: "chapter_" + m_v2[2],
+                }
+
+                // bato.to has language flags as well
+                if (xlinks_api.config.bato.show_icon)
+                    url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
+
+                // console.log(["bt_ch_url_get_info", "v2", url_info]);
+                callback(null, url_info);
+            } else if (m_v3 !== null) {
+                // we can get both chapter and series html at once here
+                var url_info = {
+                    bt_version: 3,
+                    series_id: m_v3[2],
+                    id: m_v3[3],
+                    site: "bato",
+                    type: "chapter",
+                    tag: "BT",
+                    context: "chapter_" + m_v3[3],
+                }
+
+                // bato.to has language flags as well
+                if (xlinks_api.config.bato.show_icon)
+                    url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
+
+                // console.log(["bt_ch_url_get_info", "v3", url_info]);
+                callback(null, url_info);
+            } else {
+                callback(null, null);
+            }
+        };
+        var bt_ch_url_info_to_data = function (url_info, callback) {
+            var aggregator = new BatoDataAggregator(callback);
+            aggregator.context = url_info.id;
+            bt_aggregators[url_info.id] = aggregator;
+
+            var chapterdata = bt_get_data("chapter_"+url_info.id);
+            var series_id = null;
+
+            if (url_info.bt_version == 3)  series_id = url_info.series_id;
+            else if (chapterdata !== null) series_id = chapterdata.series_id;
+            url_info.series_id = url_info.series_id || series_id;
+
+            var seriesdata = bt_get_data("series_"+url_info.series_id);
+            // console.log(["bt_ch_url_info_to_data", url_info, series_id, chapterdata, seriesdata]);
+
+            if (chapterdata !== null) {
+                aggregator.add_data("chapter", chapterdata);
+            } else {
+                // console.log(["bt_ch_url_info_to_data", "making chapter request", url_info.id, url_info]);
+                xlinks_api.request("bato", "chapter", url_info.id, url_info, 
+                    (err, data) => {
+                        if (err !== null) return;
+                        bt_set_data("chapter_"+url_info.id, data, (err) => {});
+                        aggregator.add_data("chapter", data);
+                    }
+                );
+            }
+
+            if (seriesdata !== null) {
+                aggregator.add_data("series", seriesdata);
+            } else if (series_id) {
+                // console.log(["bt_ch_url_info_to_data", "making series request", series_id, url_info]);
+                xlinks_api.request("bato", "series", series_id, url_info,
+                    (err, data) => {
+                        if (err !== null) return;
+                        bt_set_data("series_"+series_id, data, (err) => {});
+                        aggregator.add_data("series", data);
+                    }
+                );
+            }
+        };
+
+        var bt_create_actions = function (data, info, callback, retry = false) {
+            // Todo: incorporate retry into this
+            var aggregator = bt_aggregators[info.id];
+            if (aggregator == undefined && !retry) return;
+
+            // array of [descriptor, url, link_text]
+            var urls = [];
+            var last_descriptor = "";
+            let descriptor = "";
+
+            if (aggregator.data.series.title)
+                descriptor = "Title:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                if (aggregator.data.series.url)
+                    urls.push([descriptor, aggregator.data.series.url, aggregator.data.series.title]);
+                else
+                    urls.push([descriptor, null, aggregator.data.series.title]);
+
+            for (var i = 0; i < aggregator.data.authors.length; i++) {
+                descriptor = "Author:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                urls.push([descriptor, aggregator.data.authors[i][1], aggregator.data.authors[i][0]]);
+            }
+
+            for (var i = 0; i < aggregator.data.series.genres.length; i++) {
+                descriptor = "Genre:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                urls.push([descriptor, null, aggregator.data.series.genres[i]]);
+            }
+
+            callback(null, urls);
+        };
 
 
 
@@ -1297,17 +1799,46 @@
                                 {type: "textbox"}
                             ],
                         ],
-                        comick: [
-                            ["show_icon", true, "Show an icon instead of a [CK] tag", ""],
-                            ["show_author", true, "Show author name", ""],
-                            ["show_pages", true, "Show page count", ""],
-                            ["show_group", false, "Show group name", ""],
-                        ],
+                        // comick: [
+                        //     ["show_icon", true, "Show an icon instead of a [CK] tag", ""],
+                        //     ["show_author", true, "Show author name", ""],
+                        //     ["show_pages", true, "Show page count", ""],
+                        //     ["show_group", false, "Show group name", ""],
+                        // ],
                         bato: [
                             ["show_icon", true, "Show an icon instead of a [BT] tag", ""],
+                            ["show_orig_lang", true, "Show original language", "Include the original language of a series as a tag [ja], [ko], [zh], etc."],
+                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags in place of the [MD] tag or icon."],
                             ["show_author", true, "Show author name", ""],
-                            ["show_pages", true, "Show page count", ""],
-                            ["show_group", false, "Show group name", ""],
+                            ["show_ch_title", true, "Show chapter title", ""],
+                            // ["show_pages", true, "Show page count", ""],
+                            ["tag_filter", "", "Genre filter", "List of genres separated by a comma; e.g. \"Violence, Psychological\"",
+                                {type: "textbox"}
+                            ],
+                            ["tag_filter_style", "invert", "How to modify the icon on a genre filter match", "Only works if you show an icon instead of a [BT] tag",
+                                {
+                                    type: "select",
+                                    options: [
+                                        // [ value, label_text, description? ]
+                                        ["none",            "No change",        ""],
+                                        ["rotate180",       "Rotate 180°",      "transform: rotate(180deg)"],
+                                        ["long_strip",      "Long strip",       "transform: scaleX(0.5)"],
+                                        ["invert",          "Invert colors",    "filter: invert(1)"],
+                                        ["grayscale",       "Grayscale",        "filter: grayscale(1)"],
+                                        ["opacity50",       "Opacity 50%",      "filter: opacity(0.5)"],
+                                        ["drop_shadow",     "Drop shadow",      "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"],
+                                        ["sepia",           "Sepia",            "filter: sepia(1)"],
+                                        ["blur1.5",         "Blur",             "filter: blur(1.5px)"],
+                                        ["hue_rotate90",    "Hue rotate 90°",   "filter: hue-rotate(90deg)"],
+                                        ["hue_rotate180",   "Hue rotate 180°",  "filter: hue-rotate(180deg)"],
+                                        ["hue_rotate270",   "Hue rotate 270°",  "filter: hue-rotate(270deg)"],
+                                        ["custom",          "Custom CSS",       "<Your CSS here!>"],
+                                    ]
+                                }
+                            ],
+                            ["tag_filter_style_custom", "", "Custom CSS for matched genre filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
+                                {type: "textbox"}
+                            ],
                         ],
                     },
                     request_apis: [
@@ -1339,29 +1870,42 @@
                                 parse_response: ds_chapter_parse_response
                             },
                         },
+                        // {
+                        //     group: "comick",
+                        //     namespace: "comick",
+                        //     type: "generic",
+                        //     count: 1,
+                        //     concurrent: 1,
+                        //     delay_okay: 100,
+                        //     delay_error: 5000,
+                        //     functions: {
+                        //         setup_xhr: ck_generic_setup_xhr,
+                        //         parse_response: ck_generic_parse_response
+                        //     },
+                        // },
                         {
-                            group: "comick",
-                            namespace: "comick",
-                            type: "generic",
+                            group: "bato",
+                            namespace: "bato",
+                            type: "chapter",
                             count: 1,
                             concurrent: 1,
                             delay_okay: 100,
                             delay_error: 5000,
                             functions: {
-                                setup_xhr: ck_generic_setup_xhr,
-                                parse_response: ck_generic_parse_response
+                                setup_xhr: bt_chapter_setup_xhr,
+                                parse_response: bt_generic_parse_response
                             },
                         },
                         {
                             group: "bato",
                             namespace: "bato",
-                            type: "generic",
+                            type: "series",
                             count: 1,
                             concurrent: 1,
                             delay_okay: 100,
                             delay_error: 5000,
                             functions: {
-                                setup_xhr: bt_generic_setup_xhr,
+                                setup_xhr: bt_series_setup_xhr,
                                 parse_response: bt_generic_parse_response
                             },
                         },
@@ -1379,12 +1923,12 @@
                             prefix_group: 1,
                             prefix: "https://",
                         },
-                        {
-                            //https://comick.io/comic/([^\/]+)/([^\/]+)-chapter
-                            regex: /(https?:\/*)?(?:www\.)?comick.io\/comic\/([^\/]+)\/([^\/]+)-chapter/i,
-                            prefix_group: 1,
-                            prefix: "https://",
-                        },
+                        // {
+                        //     //https://comick.io/comic/([^\/]+)/([^\/]+)-chapter
+                        //     regex: /(https?:\/*)?(?:www\.)?comick.io\/comic\/([^\/]+)\/([^\/]+)-chapter/i,
+                        //     prefix_group: 1,
+                        //     prefix: "https://",
+                        // },
                         {
                             // bato.to v2: https://bato.to/chapter/3362345
                             // bato.to v3: https://bato.to/title/137465-destroy-it-all-and-love-me-in-hell/3362345-vol_5-ch_21.5
@@ -1406,12 +1950,12 @@
                             actions: ds_create_actions,
                             // details: create_details
                         },
-                        {
-                            url_info: ck_ch_url_get_info,
-                            to_data: ck_ch_url_info_to_data,
-                            actions: ck_create_actions,
-                            // details: create_details
-                        },
+                        // {
+                        //     url_info: ck_ch_url_get_info,
+                        //     to_data: ck_ch_url_info_to_data,
+                        //     actions: ck_create_actions,
+                        //     // details: create_details
+                        // },
                         {
                             url_info: bt_ch_url_get_info,
                             to_data: bt_ch_url_info_to_data,
