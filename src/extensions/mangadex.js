@@ -280,9 +280,6 @@
                 aggdata.title = aggdata.title.replace(/\s$/, "");
                 aggdata.title = aggdata.title.replace(/\s+/g, " ");
 
-                this.callback(null, aggdata);
-
-
                 if (xlinks_api.config.mangadex.show_icon) {
                     // modify the [MD] tag into an icon or flag
                     // apply a style if the tag filter is tripped
@@ -308,8 +305,11 @@
                         // console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
                     }
 
+                    this.tag_filter_tripped = apply_style;
                     replace_icon(this.context, "mangadex", icon_name, apply_style);
                 }
+
+                this.callback(null, aggdata);
             }
         }
 
@@ -777,16 +777,20 @@
         };
 
         var md_create_actions = function (data, url_info, callback, retry = false) {
-            // console.log(["md_create_actions", data, url_info, callback, md_aggregators[url_info.id]]);
+            let aggregator = md_aggregators[url_info.id];
+            // console.log(["md_create_actions", data, url_info, aggregator]);
+
+            const tag_marker_Y = " [X]";
+            const tag_marker_N = "";
 
             // [id, base_title]
-            var title_data = [md_aggregators[url_info.id].data.manga.id, md_aggregators[url_info.id].data.final.manga];
+            var title_data = [aggregator.data.manga.id, aggregator.data.final.manga];
 
             // [[id, name], [id, name], ...]
             var group_data = Array();
-            if (md_aggregators[url_info.id].data.groups.length > 0) {
-                for (let i = 0; i < md_aggregators[url_info.id].data.groups.length; i++) {
-                    group_data.push([md_aggregators[url_info.id].data.groups[i].id, md_aggregators[url_info.id].data.groups[i].name]);
+            if (aggregator.data.groups.length > 0) {
+                for (let i = 0; i < aggregator.data.groups.length; i++) {
+                    group_data.push([aggregator.data.groups[i].id, aggregator.data.groups[i].name]);
                 }
             }
 
@@ -794,16 +798,16 @@
             var author_data = Array();
             var added_author_ids = Array();
             var mangadata;
-            if (md_aggregators[url_info.id].data.authors.length > 0) {
-                for (let i = 0; i < md_aggregators[url_info.id].data.authors.length; i++) {
-                    if (added_author_ids.indexOf(md_aggregators[url_info.id].data.authors[i].id) != -1) continue;
+            if (aggregator.data.authors.length > 0) {
+                for (let i = 0; i < aggregator.data.authors.length; i++) {
+                    if (added_author_ids.indexOf(aggregator.data.authors[i].id) != -1) continue;
                     let roles = Array();
-                    if (md_aggregators[url_info.id].data.author_ids.indexOf(md_aggregators[url_info.id].data.authors[i].id) != -1)
+                    if (aggregator.data.author_ids.indexOf(aggregator.data.authors[i].id) != -1)
                         roles.push("Author");
-                    if (md_aggregators[url_info.id].data.artist_ids.indexOf(md_aggregators[url_info.id].data.authors[i].id) != -1)
+                    if (aggregator.data.artist_ids.indexOf(aggregator.data.authors[i].id) != -1)
                         roles.push("Artist");
-                    author_data.push([md_aggregators[url_info.id].data.authors[i].id, md_aggregators[url_info.id].data.authors[i].name, roles]);
-                    added_author_ids.push(md_aggregators[url_info.id].data.authors[i].id);
+                    author_data.push([aggregator.data.authors[i].id, aggregator.data.authors[i].name, roles]);
+                    added_author_ids.push(aggregator.data.authors[i].id);
                 }
             }
             else {
@@ -811,10 +815,10 @@
                 var author_ids = Array();
                 var artist_ids = Array();
                 var author_list = Array();
-                if (md_aggregators[url_info.id].data.manga.relationships)
-                    mangadata = md_aggregators[url_info.id].data.manga;
+                if (aggregator.data.manga.relationships)
+                    mangadata = aggregator.data.manga;
                 else
-                    mangadata = xlinks_api.cache_get("manga_" + md_aggregators[url_info.id].data.manga.id);
+                    mangadata = xlinks_api.cache_get("manga_" + aggregator.data.manga.id);
                 if (mangadata !== null && mangadata.relationships) {
                     for (let i = 0; i < mangadata.relationships.length; i++) {
                         if (mangadata.relationships[i].type != "author" && mangadata.relationships[i].type != "artist") continue;
@@ -836,14 +840,14 @@
                     }
                 }
                 else {
-                    // console.log(["No cached manga data with relationships:", md_aggregators[url_info.id].data.manga.id, mangadata]);
+                    // console.log(["No cached manga data with relationships:", aggregator.data.manga.id, mangadata]);
                 }
             }
             if (author_data.length == 0 && !retry) {
                 // console.log("No authors found. Initiating new manga data request.");
                 let manga_url_info = {
-                    id: md_aggregators[url_info.id].data.manga.id,
-                    context: "manga_" + md_aggregators[url_info.id].data.chapter.id,
+                    id: aggregator.data.manga.id,
+                    context: "manga_" + aggregator.data.chapter.id,
                     type: "manga",
                     includes: ["author", "artist"],
                 };
@@ -861,10 +865,10 @@
             var tag_data = Array();
             var tag_groups = {};
             // console.log([]);
-            if (md_aggregators[url_info.id].data.manga.tags)
-                mangadata = md_aggregators[url_info.id].data.manga;
+            if (aggregator.data.manga.tags)
+                mangadata = aggregator.data.manga;
             else {
-                let cached_mangadata = xlinks_api.cache_get("manga_" + md_aggregators[url_info.id].data.manga.id);
+                let cached_mangadata = xlinks_api.cache_get("manga_" + aggregator.data.manga.id);
                 if (cached_mangadata.tags)
                     mangadata = cached_mangadata;
                 else
@@ -895,34 +899,36 @@
             }
 
             // array of [descriptor, url, link_text]
-            var urls = Array();
-            var base_url = "https://mangadex.org/";
-            var last_descriptor = "";
+            let urls = [];
+            let base_url = "https://mangadex.org/";
+            let last_descriptor = "";
+            let descriptor = "";
+            let tag_marker = "";
+            let tag_array = xlinks_api.config.mangadex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
 
             urls.push(["Title:", base_url + "title/" + title_data[0], title_data[1]]);
             for (let i = 0; i < group_data.length; i++) {
-                let descriptor = "Group:";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
+                descriptor = "Group:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
                 urls.push([descriptor, base_url + "group/" + group_data[i][0], group_data[i][1]]);
             }
             for (let i = 0; i < author_data.length; i++) {
-                let descriptor = author_data[i][2].join(", ") + ":";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
+                descriptor = author_data[i][2].join(", ") + ":";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
                 urls.push([descriptor, base_url + "author/" + author_data[i][0], author_data[i][1]]);
             }
             for (let i = 0; i < tag_data.length; i++) {
-                let descriptor = tag_data[i][2] + ":";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
-                urls.push([descriptor, base_url + "tag/" + tag_data[i][0], tag_data[i][1]]);
+                descriptor = tag_data[i][2] + ":";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
+                tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(tag_data[i][1].toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
+
+                urls.push([descriptor+tag_marker, base_url + "tag/" + tag_data[i][0], tag_data[i][1]]);
             }
 
             callback(null, urls);
