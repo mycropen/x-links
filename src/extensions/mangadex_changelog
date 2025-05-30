@@ -1,5 +1,9 @@
 master
 
+1.6.3
+- mycropen
+  + Fixed Mangadex and Comick links breaking with "show group name" or "non-default series title" options enabled
+
 1.6.2
 - mycropen
   + Improved full chapter url recognition without 4chan-x pre-replacing them with hyperlinks

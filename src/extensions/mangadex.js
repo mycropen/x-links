@@ -231,7 +231,7 @@
                     var title_found = false;
                     for (let i = 0; i < title_order.length; i++) {
                         if (title_found) break;
-                        lcode = title_order[i];
+                        let lcode = title_order[i];
                         lcode = lcode.replace(/orig/i, data.manga.originalLanguage);
                         if (data.manga.title[lcode] !== undefined) {
                             data.final.manga = data.manga.title[lcode];
@@ -265,7 +265,7 @@
                 if (data.chapter.pages)
                     data.final.pages = "(" + data.chapter.pages + "p)";
                 if (xlinks_api.config.mangadex.show_group && data.groups.length > 0) {
-                    combined_group_name = "";
+                    let combined_group_name = "";
                     for (let i = 0; i < data.groups.length; i++) {
                         combined_group_name += data.groups[i].name + ', '
                     }
@@ -1792,7 +1792,7 @@
                     template += "${chapter_title} ";
                 if (xlinks_api.config.comick.show_pages && this.data.chapter.pages)
                     template += "${pages} ";
-                if (xlinks_api.config.comick.show_group && data.chapter.groups.length > 0)
+                if (xlinks_api.config.comick.show_group && this.data.chapter.groups.length > 0)
                     template += "${group}";
 
                 if (this.data.series.authors.length > 0) {
@@ -1814,7 +1814,7 @@
                         for (var i = 0; i < title_order.length; i++) {
                             if (title_found) break;
                             let lcode = title_order[i].replace(/orig/i, this.data.series.language);
-                            console.log([this.data.series.title, lcode, this.data.series.titles[lcode]]);
+                            // console.log([this.data.series.title, lcode, this.data.series.titles[lcode]]);
                             if (this.data.series.titles[lcode] !== undefined) {
                                 aggdata.series = this.data.series.titles[lcode];
                                 title_found = true;
