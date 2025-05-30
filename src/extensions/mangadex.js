@@ -385,7 +385,7 @@
                 return;
             }
 
-            jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
             if (jsdata == null || jsdata.data == undefined || jsdata.data.attributes == undefined) {
                 callback("Cannot parse response.");
                 return;
@@ -435,7 +435,7 @@
             }
             var aggregator = md_aggregators[ctx[1]];
 
-            jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
             if (jsdata == null || jsdata.data == undefined || jsdata.data.attributes == undefined) {
                 callback("Cannot parse response.");
                 return;
@@ -593,7 +593,7 @@
                 return;
             }
 
-            jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
             if (jsdata == null || jsdata.data == undefined || jsdata.data.attributes == undefined) {
                 callback("Cannot parse response.");
                 return;
