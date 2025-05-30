@@ -1124,6 +1124,9 @@
         };
 
         var ds_create_actions = function (data, info, callback, retry = false) {
+            const tag_marker_Y = " [X]";
+            const tag_marker_N = "";
+
             // console.log(["ds_create_actions", data, info, callback]);
             if (data.links == undefined) {
                 if (retry) {
@@ -1145,42 +1148,48 @@
             var urls = Array();
             var base_url = "https://dynasty-scans.com";
             var last_descriptor = "";
+            let descriptor = "";
+            let tag_array = xlinks_api.config.dynasty.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+            let tag_marker = "";
 
             if (data.releasedAt)
                 urls.push(["Released:", null, data.releasedAt]);
+
             if (data.links.base_title.length > 0)
                 urls.push(["Title:", base_url + data.links.base_title[0], data.links.base_title[1]]);
+
             for (i=0; i < data.authors.length; i++) {
-                let descriptor = "Author:";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
+                descriptor = "Author:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
                 urls.push([descriptor, base_url + data.links.authors[data.authors[i]], data.authors[i]]);
             }
+
             for (i=0; i < data.groups.length; i++) {
-                let descriptor = "Group:";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
+                descriptor = "Group:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
                 urls.push([descriptor, base_url + data.links.groups[data.groups[i]], data.groups[i]]);
             }
+
             for (i=0; i < data.volumes.length; i++) {
-                let descriptor = "Volume:";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
+                descriptor = "Volume:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
                 urls.push([descriptor, base_url + data.links.volumes[data.volumes[i]], data.volumes[i]]);
             }
+
             for (i=0; i < data.tags.length; i++) {
-                let descriptor = "Tag:";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
-                urls.push([descriptor, base_url + data.links.tags[data.tags[i]], data.tags[i]]);
+                descriptor = "Tag:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
+                tag_marker = (tag_array.indexOf(data.tags[i].toLowerCase()) >= 0) ? tag_marker_Y : tag_marker_N;
+
+                urls.push([descriptor+tag_marker, base_url + data.links.tags[data.tags[i]], data.tags[i]]);
             }
 
             callback(null, urls);
