@@ -1201,6 +1201,7 @@
             constructor(final_callback) {
                 this.callback = final_callback;
                 this.context = null;
+                this.tag_filter_tripped = false;
                 this.data = {
                     series: {
                         title: "",
@@ -1273,8 +1274,6 @@
                 aggdata.title = aggdata.title.replace(/\s$/, "");
                 aggdata.title = aggdata.title.replace(/\s+/g, " ");
 
-                this.callback(null, aggdata);
-
                 if (xlinks_api.config.bato.show_icon) {
                     // modify the [MD] tag into an icon or flag
                     // apply a style if the tag filter is tripped
@@ -1298,8 +1297,11 @@
                         // console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
                     }
 
+                    this.tag_filter_tripped = apply_style;
                     replace_icon(this.context, "bato", icon_name, apply_style);
                 }
+
+                this.callback(null, aggdata);
             }
         }
 
@@ -1645,7 +1647,10 @@
         };
 
         var bt_create_actions = function (data, info, callback, retry = false) {
-            // Todo: incorporate retry into this
+            const tag_marker_Y = " [X]";
+            const tag_marker_N = "";
+
+            // Todo: incorporate retry into this if necessary
             var aggregator = bt_aggregators[info.id];
             if (aggregator == undefined && !retry) return;
 
@@ -1653,8 +1658,10 @@
             var urls = [];
             var last_descriptor = "";
             let descriptor = "";
+            let tag_array = xlinks_api.config.bato.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+            let tag_marker = "";
 
-            if (aggregator.data.series.title)
+            if (aggregator.data.series.title) {
                 descriptor = "Title:";
                 if (last_descriptor == descriptor) descriptor = "";
                 else last_descriptor = descriptor;
@@ -1663,13 +1670,14 @@
                     urls.push([descriptor, aggregator.data.series.url, aggregator.data.series.title]);
                 else
                     urls.push([descriptor, null, aggregator.data.series.title]);
+            }
 
-            for (var i = 0; i < aggregator.data.authors.length; i++) {
+            for (var i = 0; i < aggregator.data.series.authors.length; i++) {
                 descriptor = "Author:";
                 if (last_descriptor == descriptor) descriptor = "";
                 else last_descriptor = descriptor;
 
-                urls.push([descriptor, aggregator.data.authors[i][1], aggregator.data.authors[i][0]]);
+                urls.push([descriptor, aggregator.data.series.authors[i][1], aggregator.data.series.authors[i][0]]);
             }
 
             for (var i = 0; i < aggregator.data.series.genres.length; i++) {
@@ -1677,7 +1685,13 @@
                 if (last_descriptor == descriptor) descriptor = "";
                 else last_descriptor = descriptor;
 
-                urls.push([descriptor, null, aggregator.data.series.genres[i]]);
+                tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(aggregator.data.series.genres[i].toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
+
+                urls.push([descriptor+tag_marker, null, aggregator.data.series.genres[i]]);
+            }
+
+            callback(null, urls);
+        };
 
 
         // comick.io
@@ -2279,7 +2293,8 @@
                             ["custom_title", false, "Non-default series title language", "With the default title as fallback"],
                             ["title_search_order", "en, orig-ro, orig", "Series title search order",
                                 "orig = original language; -ro = romanized; e.g. ja, ja-ro, en, zh, zh-hk, ko, id, th, es, vi, de, ru, uk, fr, fa, pt, pt-br, tr, ...",
-                                {type: "textbox"}],
+                                {type: "textbox"}
+                            ],
                             // ["show_ch_lang", false, "Show chapter language", "Include the language a chapter was translated into"],
                             ["tag_filter", "", "Tag filter", "(https://mangadex.org/tag) List of English tag names separated by a comma; e.g. \"4-koma, genderswap, gore\"",
                                 {type: "textbox"}
