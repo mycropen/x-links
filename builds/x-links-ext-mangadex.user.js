@@ -2,7 +2,7 @@
 // @name        X-links Extension - Mangadex
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.6.1
+// @version     1.6.2
 // @description Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
@@ -3475,7 +3475,7 @@
             name: "Mangadex & Dynasty links",
             author: "mycropen",
             description: "Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to",
-            version: [1,6,1],
+            version: [1,6,2],
             registrations: 1,
             main: main_fn
         }, function (err) {
@@ -3738,6 +3738,9 @@
                         },
                     ],
                     linkifiers: [
+                        // Note for the future: Make sure these regex patterns capture the whole url. Without 4chan-x or
+                        // similar installed, only the part of the url that's captured by these patterns will be
+                        // replaced.
                         {
                             // mangadex.org can only be preceeded by "https://" or "www." or both or neither
                             // the link ends either with the ID, a "/", a "#" or "/5" (for page 5)
@@ -3746,7 +3749,7 @@
                             prefix: "https://",
                         },
                         {
-                            regex: /(https?:\/*)?(?:www\.)?dynasty-scans\.com\/chapters\/(?:[^\s]+)?/i,
+                            regex: /(https?:\/*)?(?:www\.)?dynasty-scans\.com\/chapters\/\S+/i,
                             prefix_group: 1,
                             prefix: "https://",
                         },
@@ -3754,13 +3757,13 @@
                             // bato.to v2: https://bato.to/chapter/3362345
                             // bato.to v3: https://bato.to/title/137465-destroy-it-all-and-love-me-in-hell/3362345-vol_5-ch_21.5
                             // bato.to also has a ton of mirrors, so defining the regex statically would be a pain
-                            regex: new RegExp(String.raw`(https?:\/*)?(?:www\.)?(${bt_mirrors_re})\/(chapter|title\/[^\/]+)\/\d+`, "i"),
+                            regex: new RegExp(String.raw`(https?:\/*)?(?:www\.)?(${bt_mirrors_re})\/(chapter|title\/[^\/]+)\/\S+`, "i"),
                             prefix_group: 1,
                             prefix: "https://",
                         },
                         {
                             // https://comick.io/comic/a-ninja-and-an-assassin-living-together/2JbmNIIV-chapter-36-en
-                            regex: /(https?:\/*)?(?:www\.)?comick\.io\/comic\/([^\/]+)\/([^\/\-]+)/i,
+                            regex: /(https?:\/*)?(?:www\.)?comick\.io\/comic\/([^\/]+)\/\S+/i,
                             prefix_group: 1,
                             prefix: "https://",
                         },

@@ -1,5 +1,13 @@
 master
 
+1.6.2
+- mycropen
+  + Improved full chapter url recognition without 4chan-x pre-replacing them with hyperlinks
+
+1.6.1
+- mycropen
+  + Added support for a whole load of bato.to mirrors
+
 1.6
 - mycropen
   + Added support for comick.io and bato.to chapter links
