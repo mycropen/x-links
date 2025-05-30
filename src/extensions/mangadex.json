@@ -1,6 +1,6 @@
 {
     "name": "X-links Extension - Mangadex",
-    "version": "1.6",
+    "version": "1.6.1",
     "author": "mycropen",
     "description": "Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to",
     "namespace": "mycropen",

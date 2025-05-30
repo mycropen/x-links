@@ -2,7 +2,7 @@
 // @name        X-links Extension - Mangadex (debug)
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.6.-0xDB
+// @version     1.6.1.-0xDB
 // @description Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
@@ -2587,6 +2587,7 @@
                 this.callback = final_callback;
                 this.context = null;
                 this.tag_filter_tripped = false;
+                this.domain = "bato.to";
                 this.data = {
                     series: {
                         title: "",
@@ -2702,6 +2703,14 @@
             "Thai": "th",
         };
 
+        const bt_mirrors = [
+            "xbato\\.com", "xbato\\.net", "xbato\\.org", "zbato\\.com", "zbato\\.net", "zbato\\.org", "readtoto\\.com",
+            "readtoto\\.net", "readtoto\\.org", "batocomic\\.com", "batocomic\\.net", "batocomic\\.org", "batotoo\\.com",
+            "batotwo\\.com", "battwo\\.com", "comiko\\.net", "comiko\\.org", "mangatoto\\.com", "mangatoto\\.net",
+            "mangatoto\\.org", "dto\\.to", "fto\\.to", "jto\\.to", "hto\\.to", "mto\\.to", "wto\\.to", "bato\\.to",
+        ];
+        const bt_mirrors_re = bt_mirrors.join("|");
+
         var bt_get_data = function (key) {
             var data = xlinks_api.cache_get("bt_" + key);
             return data;
@@ -2722,13 +2731,13 @@
             if (info.bt_version == 2) {
                 callback(null, {
                     method: "GET",
-                    url: "https://bato.to/chapter/"+info.id+"/1",
+                    url: "https://"+info.domain+"/chapter/"+info.id+"/1",
                     context: [2, "chapter", ctx],
                 });
             } else if (info.bt_version == 3) {
                 callback(null, {
                     method: "GET",
-                    url: "https://bato.to/title/"+info.series_id+"/"+info.id+"?load=0",
+                    url: "https://"+info.domain+"/title/"+info.series_id+"/"+info.id+"?load=0",
                     context: [3, "chapter", ctx],
                 });
             } else {
@@ -2743,7 +2752,7 @@
             if (info.context !== undefined) ctx = info.context;
             callback(null, {
                 method: "GET",
-                url: "https://bato.to/title/"+info.series_id,
+                url: "https://"+info.domain+"/title/"+info.series_id,
                 context: [3, "series", ctx],
             });
         }._w(105);
@@ -2863,8 +2872,6 @@
             callback(null, [ch_data]);
         }._w(108);
         var bt_series_v3_parse_response = function (xhr, callback) {
-            const base_url = "https://bato.to";
-
             var ctx = xhr.context[2];
             var chapter_id = ctx.split('_')[1];
             // console.log(["bt_series_v3_parse_response", xhr]);
@@ -2874,14 +2881,18 @@
             var series_data = {
                 title: "",
                 language: "",
-                url: xhr.finalUrl,
+                url: "",
                 genres: [],
                 authors: [],
             };
 
 
             var series_a = $('h3 a[href*="/title/"]', html);
-            if (series_a !== null) series_data.title = series_a.innerText;
+            if (series_a !== null) {
+                series_data.title = series_a.innerText;
+                // series_a.href would get expanded using the domain the script is running on and not bato.to
+                series_data.url = series_a.getAttribute("href");
+            }
 
 
             var language_spans = $$('div.whitespace-nowrap span', html);
@@ -2930,7 +2941,7 @@
             var author_a_list = $$('div.mt-3 div.mt-2 a[href*="v3x-search"]', html);
             for (var i = 0; i < author_a_list.length; i++) {
                 // the .href attribute gets expanded automatically with the current domain
-                series_data.authors.push([author_a_list[i].innerText, base_url+author_a_list[i].getAttribute('href')]);
+                series_data.authors.push([author_a_list[i].innerText, author_a_list[i].getAttribute('href')]);
             }
 
 
@@ -2943,22 +2954,31 @@
 
             // https://bato.to/chapter/3362345
             // no series_id in the url
-            let m_v2 = /(https?:\/*)?(?:www\.)?bato.to\/chapter\/(\d+)/i.exec(url);
+            //  m_v2[1] = "https://"
+            //  m_v2[2] = domain
+            //  m_v2[3] = chapter_id
+            let m_v2 = new RegExp(String.raw`(https?:\/*)?(?:www\.)?(${bt_mirrors_re})\/chapter\/(\d+)`, "i").exec(url);
+
             // https://bato.to/title/137465-destroy-it-all-and-love-me-in-hell/3362345-vol_5-ch_21.5
             // https://bato.to/title/{series_id}-.../{chapter_id}-...
-            let m_v3 = /(https?:\/*)?(?:www\.)?bato.to\/title\/(\d+)-[^\/]+\/(\d+)/i.exec(url);
+            //  m_v3[1] = "https://"
+            //  m_v3[2] = domain
+            //  m_v3[3] = series_id
+            //  m_v3[4] = chapter_id
+            let m_v3 = new RegExp(String.raw`(https?:\/*)?(?:www\.)?(${bt_mirrors_re})\/title\/(\d+)-[^\/]+\/(\d+)`, "i").exec(url);
 
             // console.log(["bt_ch_url_get_info", url, m_v2, m_v3]);
 
             if (m_v2 !== null) {
                 // get the chapter html first and figure out the series url from there
                 var url_info = {
+                    domain: m_v2[2],
                     bt_version: 2,
-                    id: m_v2[2],
+                    id: m_v2[3],
                     site: "bato",
                     type: "chapter",
                     tag: "BT",
-                    context: "chapter_" + m_v2[2],
+                    context: "chapter_" + m_v2[3],
                 }
 
                 // bato.to has language flags as well
@@ -2970,13 +2990,14 @@
             } else if (m_v3 !== null) {
                 // we can get both chapter and series html at once here
                 var url_info = {
+                    domain: m_v3[2],
                     bt_version: 3,
-                    series_id: m_v3[2],
-                    id: m_v3[3],
+                    series_id: m_v3[3],
+                    id: m_v3[4],
                     site: "bato",
                     type: "chapter",
                     tag: "BT",
-                    context: "chapter_" + m_v3[3],
+                    context: "chapter_" + m_v3[4],
                 }
 
                 // bato.to has language flags as well
@@ -2992,6 +3013,7 @@
         var bt_ch_url_info_to_data = function (url_info, callback) {
             var aggregator = new BatoDataAggregator(callback);
             aggregator.context = url_info.id;
+            if (url_info.domain) aggregator.domain = url_info.domain;
             bt_aggregators[url_info.id] = aggregator;
 
             var chapterdata = bt_get_data("chapter_"+url_info.id);
@@ -3036,15 +3058,16 @@
             const tag_marker_N = "";
 
             // Todo: incorporate retry into this if necessary
-            var aggregator = bt_aggregators[info.id];
+            let aggregator = bt_aggregators[info.id];
             if (aggregator == undefined && !retry) return;
 
             // array of [descriptor, url, link_text]
-            var urls = [];
-            var last_descriptor = "";
+            let urls = [];
+            let last_descriptor = "";
             let descriptor = "";
             let tag_array = xlinks_api.config.bato.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
             let tag_marker = "";
+            let base_url = "https://" + aggregator.domain;
 
             if (aggregator.data.series.title) {
                 descriptor = "Title:";
@@ -3052,7 +3075,7 @@
                 else last_descriptor = descriptor;
 
                 if (aggregator.data.series.url)
-                    urls.push([descriptor, aggregator.data.series.url, aggregator.data.series.title]);
+                    urls.push([descriptor, base_url+aggregator.data.series.url, aggregator.data.series.title]);
                 else
                     urls.push([descriptor, null, aggregator.data.series.title]);
             }
@@ -3062,7 +3085,7 @@
                 if (last_descriptor == descriptor) descriptor = "";
                 else last_descriptor = descriptor;
 
-                urls.push([descriptor, aggregator.data.series.authors[i][1], aggregator.data.series.authors[i][0]]);
+                urls.push([descriptor, base_url+aggregator.data.series.authors[i][1], aggregator.data.series.authors[i][0]]);
             }
 
             for (var i = 0; i < aggregator.data.series.genres.length; i++) {
@@ -3464,7 +3487,7 @@
         var ck_ch_url_get_info = function (url, callback) {
             let series_id, chapter_id;
 
-            let m = /(https?:\/*)?(?:www\.)?comick.io\/comic\/([^\/]+)\/([^\/\-]+)/i.exec(url);
+            let m = /(https?:\/*)?(?:www\.)?comick\.io\/comic\/([^\/]+)\/([^\/\-]+)/i.exec(url);
 
             if (m !== null) {
                 var url_info = {
@@ -3641,7 +3664,7 @@
             name: "Mangadex & Dynasty links",
             author: "mycropen",
             description: "Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to",
-            version: [1,6,-0xDB],
+            version: [1,6,1,-0xDB],
             registrations: 1,
             main: main_fn
         }, function (err) {
@@ -3905,27 +3928,28 @@
                     ],
                     linkifiers: [
                         {
-                        // mangadex.org can only be preceeded by "https://" or "www." or both or neither
-                        // the link ends either with the ID, a "/", a "#" or "/5" (for page 5)
-                        regex: /(https?:\/\/)?(www\.)?(?<=(www\.|\/\/|\s+|^))mangadex\.org\/chapter\/([a-z0-9\-]+)(\/|\/\d+|\/\d+)?#?/i,
-                        prefix_group: 1,
-                        prefix: "https://",
+                            // mangadex.org can only be preceeded by "https://" or "www." or both or neither
+                            // the link ends either with the ID, a "/", a "#" or "/5" (for page 5)
+                            regex: /(https?:\/\/)?(www\.)?(?<=(www\.|\/\/|\s+|^))mangadex\.org\/chapter\/([a-z0-9\-]+)(\/|\/\d+|\/\d+)?#?/i,
+                            prefix_group: 1,
+                            prefix: "https://",
                         },
                         {
-                            regex: /(https?:\/*)?(?:www\.)?dynasty-scans.com\/chapters\/(?:[^\s]+)?/i,
+                            regex: /(https?:\/*)?(?:www\.)?dynasty-scans\.com\/chapters\/(?:[^\s]+)?/i,
                             prefix_group: 1,
                             prefix: "https://",
                         },
                         {
                             // bato.to v2: https://bato.to/chapter/3362345
                             // bato.to v3: https://bato.to/title/137465-destroy-it-all-and-love-me-in-hell/3362345-vol_5-ch_21.5
-                            regex: /(https?:\/*)?(?:www\.)?bato.to\/(chapter|title\/[^\/]+)\/\d+/i,
+                            // bato.to also has a ton of mirrors, so defining the regex statically would be a pain
+                            regex: new RegExp(String.raw`(https?:\/*)?(?:www\.)?(${bt_mirrors_re})\/(chapter|title\/[^\/]+)\/\d+`, "i"),
                             prefix_group: 1,
                             prefix: "https://",
                         },
                         {
                             // https://comick.io/comic/a-ninja-and-an-assassin-living-together/2JbmNIIV-chapter-36-en
-                            regex: /(https?:\/*)?(?:www\.)?comick.io\/comic\/([^\/]+)\/([^\/\-]+)/i,
+                            regex: /(https?:\/*)?(?:www\.)?comick\.io\/comic\/([^\/]+)\/([^\/\-]+)/i,
                             prefix_group: 1,
                             prefix: "https://",
                         },
