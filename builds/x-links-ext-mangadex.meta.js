@@ -2,8 +2,8 @@
 // @name        X-links Extension - Mangadex
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.5
-// @description Linkify and format Mangadex & Dynasty-Scans links
+// @version     1.6
+// @description Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
 // @include     http://boards.4channel.org/*

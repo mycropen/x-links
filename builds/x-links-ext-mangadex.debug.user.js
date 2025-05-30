@@ -2,8 +2,8 @@
 // @name        X-links Extension - Mangadex (debug)
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.5.-0xDB
-// @description Linkify and format Mangadex & Dynasty-Scans links
+// @version     1.6.-0xDB
+// @description Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
 // @include     http://boards.4channel.org/*
@@ -1443,213 +1443,25 @@
             "ja": "lang_jp",
             "jp": "lang_jp",
             "ko": "lang_kr",
+            "cn": "lang_cn",
             "zh": "lang_cn",
             "zh-hk": "lang_hk",
             "id": "lang_id",
             "th": "lang_th",
         };
 
-        var DataAggregator = function (final_callback) {
-            this.callback = final_callback;
-            this.context = null;
-            this.group_num = 0;
-            this.author_num = 1;
-            this.artist_num = 1;
-            this.data = {
-                groups: Array(),
-                authors: Array(),
-                author_ids: Array(),
-                artist_ids: Array(),
-            };
-        }._w(77);
-        DataAggregator.prototype.add_author_id = function (id) {
-            this.data.author_ids.push(id);
-        }._w(78);
-        DataAggregator.prototype.add_artist_id = function (id) {
-            this.data.artist_ids.push(id);
-        }._w(79);
-        DataAggregator.prototype.add_data = function (category, data) {
-            if (category == "group")
-                this.data.groups.push(data);
-            else if (category == "author")
-                this.data.authors.push(data);
-            else
-                this.data[category] = data;
-            this.validate();
-        }._w(80);
-        DataAggregator.prototype.validate = function () {
-            // call this.callback if this.data has all necessary categories
-            if (this.data.chapter == undefined)
-                return;
-            if (this.data.manga == undefined)
-                return;
-            if (xlinks_api.config.mangadex.show_group && this.data.groups.length < this.group_num)
-                return;
-            if (xlinks_api.config.mangadex.show_author) {
-                let has_authors = 0;
-                for (let i = this.data.authors.length - 1; i >= 0; i--) {
-                    if (this.data.author_ids.indexOf(this.data.authors[i].id) != -1)
-                        has_authors++;
-                }
-                if (has_authors < this.author_num)
-                    return;
-            }
-            if (xlinks_api.config.mangadex.show_artist) {
-                let has_artists = 0;
-                for (let i = this.data.authors.length - 1; i >= 0; i--) {
-                    if (this.data.artist_ids.indexOf(this.data.authors[i].id) != -1)
-                        has_artists++;
-                }
-                if (has_artists < this.artist_num)
-                    return;
-            }
-
-            // console.log(["valid data", this.context, this.group_num, this.author_num, this.artist_num, this.data]);
-
-            // make a usable object out of the categories
-            var aggdata = {};
-            var template = "";
-            var data = this.data;
-
-            data.final = {
-                manga_lang: "",
-                author: "",
-                manga: null,
-                volume: "",
-                chapter: "",
-                title: "",
-                pages: "",
-                group: "",
-            };
-
-            // aggdata.title
-            // "${manga_lang} ${author} ${manga} ${volume} ${chapter} ${title} ${pages} ${group}"
-            if (xlinks_api.config.mangadex.show_orig_lang && !xlinks_api.config.mangadex.use_flags && data.manga.originalLanguage)
-                template += "${manga_lang} ";
-            if ((xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist) && data.authors.length > 0 && this.author_num + this.artist_num > 0)
-                template += "${author} ";
-            if (data.manga.title || data.manga.altTitles)
-                template += "${manga} ";
-            if (xlinks_api.config.mangadex.show_volume && data.chapter.volume)
-                template += "${volume} ";
-            if (data.chapter.chapter)
-                template += "${chapter} ";
-            if (xlinks_api.config.mangadex.show_ch_title && data.chapter.title)
-                template += "${title} ";
-            if (xlinks_api.config.mangadex.show_pages && data.chapter.pages)
-                template += "${pages} ";
-            if (xlinks_api.config.mangadex.show_group && data.groups.length > 0)
-                template += "${group}";
-
-            if (data.manga.originalLanguage)
-                data.final.manga_lang = "["+data.manga.originalLanguage+"]";
-
-            if (data.authors.length > 0) {
-                var author_names = Array();
-                for (let i = 0; i < data.authors.length; i++) {
-                    if (xlinks_api.config.mangadex.show_author && data.author_ids.indexOf(data.authors[i].id) != -1 && author_names.indexOf(data.authors[i].name) == -1) {
-                        author_names.push(data.authors[i].name);
-                    }
-                    if (xlinks_api.config.mangadex.show_artist && data.artist_ids.indexOf(data.authors[i].id) != -1 && author_names.indexOf(data.authors[i].name) == -1) {
-                        author_names.push(data.authors[i].name);
-                    }
-                }
-                data.final.author = "[" + author_names.join(", ") + "]";
-            }
-
-            if (xlinks_api.config.mangadex.custom_title) {
-                var title_order = xlinks_api.config.mangadex.title_search_order.replace(/\s+/g, "").split(",");
-                var title_found = false;
-                for (let i = 0; i < title_order.length; i++) {
-                    if (title_found) break;
-                    lcode = title_order[i];
-                    lcode = lcode.replace(/orig/i, data.manga.originalLanguage);
-                    if (data.manga.title[lcode] !== undefined) {
-                        data.final.manga = data.manga.title[lcode];
-                        break;
-                    }
-                    else {
-                        // altTitles is an array of objects with each single entries
-                        for (var j = 0; j < data.manga.altTitles.length; j++) {
-                            if (data.manga.altTitles[j][lcode] !== undefined) {
-                                data.final.manga = data.manga.altTitles[j][lcode];
-                                title_found = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            if (!data.final.manga) {
-                // take the default title
-                let keys = Object.keys(data.manga.title);
-                if (keys.length)
-                    data.final.manga = data.manga.title[keys[0]];
-            }
-
-            if (data.chapter.volume)
-                data.final.volume = "vol. " + data.chapter.volume;
-            if (data.chapter.chapter)
-                data.final.chapter = "ch. " + data.chapter.chapter;
-            if (data.chapter.title)
-                data.final.title = '- "' + data.chapter.title + '"';
-            if (data.chapter.pages)
-                data.final.pages = "(" + data.chapter.pages + "p)";
-            if (xlinks_api.config.mangadex.show_group && data.groups.length > 0) {
-                combined_group_name = "";
-                for (let i = 0; i < data.groups.length; i++) {
-                    combined_group_name += data.groups[i].name + ', '
-                }
-                combined_group_name = combined_group_name.replace(/, $/, "");
-                data.final.group = "[" + combined_group_name + "]";
-                if (combined_group_name == "null")
-                    console.log(["null group name:", data.groups]);
-            }
-
-            aggdata.title = interpolate(template, data.final);
-            aggdata.title = aggdata.title.replace(/^\s+/, "");
-            aggdata.title = aggdata.title.replace(/\s$/, "");
-            aggdata.title = aggdata.title.replace(/\s+/g, " ");
-
-            this.callback(null, aggdata);
-
-
-            if (xlinks_api.config.mangadex.show_icon) {
-                // modify the [MD] tag into an icon or flag
-                // apply a style if the tag filter is tripped
-                let icon_name = "site_MD";
-                let apply_style = false;
-
-                if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[data.manga.originalLanguage] !== undefined)
-                    icon_name = lang_to_flag[data.manga.originalLanguage]
-
-                // search for tags matching the tag filter
-                if (xlinks_api.config.mangadex.tag_filter.trim() !== "") {
-                    // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
-                    let tag_array = xlinks_api.config.mangadex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
-
-                    for (let i = 0; i < data.manga.tags.length; i++) {
-                        if (data.manga.tags[i].attributes.name.en !== undefined) {
-                            if (tag_array.indexOf(data.manga.tags[i].attributes.name.en.toLowerCase()) >= 0) {
-                                apply_style = true;
-                                break;
-                            }
-                        }
-                    }
-                    // console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
-                }
-
-                replace_icon(this.context, "mangadex", icon_name, apply_style);
-            }
-        }._w(81);
-
-        var aggregators = {};
+        var site_short = {
+            "mangadex": "md",
+            "dynasty": "ds",
+            "bato": "bt",
+            "comick": "ck",
+        }
         
         var replace_icon = function (ch_id, site, icon_name, apply_style) {
             // url_info.icon was set to a placeholder if use_flags is set
             // this replaces it with the real icon (e.g. a flag) after the manga data was acquired
             // also applies a style to the icon if apply_style is true
-            // site must be either "dynasty" or "mangadex" because it's directly used as the attribute name of xlinks_api.config
+            // site must be either "mangadex", "dynasty" or "bato" because it's directly used as the attribute name of xlinks_api.config
             var style_str = "";
 
             if (apply_style) {
@@ -1671,7 +1483,7 @@
             }
             // console.log([ch_id, apply_style, xlinks_api.config[site].tag_filter_style, style_str]);
 
-            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+ch_id+"]");
+            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+site_short[site]+"-"+ch_id+"]");
             for (let i = 0; i < nodes.length; i++) {
                 nodes[i].setAttribute("data-xl-site-tag-icon", icon_name);
 
@@ -1681,21 +1493,223 @@
                 else
                     nodes[i].setAttribute("style", [node_style.trim(";"), style_str].join(";")) 
             }
-        }._w(82)
+        }._w(77)
 
 
         // functions that interact with the API
         // Mangadex
+        class MangadexDataAggregator {
+            constructor(final_callback) {
+                this.callback = final_callback;
+                this.context = null;
+                this.group_num = 0;
+                this.author_num = 1;
+                this.artist_num = 1;
+                this.data = {
+                    groups: Array(),
+                    authors: Array(),
+                    author_ids: Array(),
+                    artist_ids: Array(),
+                };
+            }
+
+            add_author_id(id) {
+                this.data.author_ids.push(id);
+            }
+
+            add_artist_id(id) {
+                this.data.artist_ids.push(id);
+            }
+
+            add_data(category, data) {
+                if (category == "group")
+                    this.data.groups.push(data);
+                else if (category == "author")
+                    this.data.authors.push(data);
+                else
+                    this.data[category] = data;
+                this.validate();
+            }
+
+            validate() {
+                // call this.callback if this.data has all necessary categories
+                if (this.data.chapter == undefined)
+                    return;
+                if (this.data.manga == undefined)
+                    return;
+                if (xlinks_api.config.mangadex.show_group && this.data.groups.length < this.group_num)
+                    return;
+                if (xlinks_api.config.mangadex.show_author) {
+                    let has_authors = 0;
+                    for (let i = this.data.authors.length - 1; i >= 0; i--) {
+                        if (this.data.author_ids.indexOf(this.data.authors[i].id) != -1)
+                            has_authors++;
+                    }
+                    if (has_authors < this.author_num)
+                        return;
+                }
+                if (xlinks_api.config.mangadex.show_artist) {
+                    let has_artists = 0;
+                    for (let i = this.data.authors.length - 1; i >= 0; i--) {
+                        if (this.data.artist_ids.indexOf(this.data.authors[i].id) != -1)
+                            has_artists++;
+                    }
+                    if (has_artists < this.artist_num)
+                        return;
+                }
+
+                // console.log(["valid data", this.context, this.group_num, this.author_num, this.artist_num, this.data]);
+
+                // make a usable object out of the categories
+                var aggdata = {};
+                var template = "";
+                var data = this.data;
+
+                data.final = {
+                    manga_lang: "",
+                    author: "",
+                    manga: null,
+                    volume: "",
+                    chapter: "",
+                    title: "",
+                    pages: "",
+                    group: "",
+                };
+
+                // aggdata.title
+                // "${manga_lang} ${author} ${manga} ${volume} ${chapter} ${title} ${pages} ${group}"
+                if (xlinks_api.config.mangadex.show_orig_lang && !xlinks_api.config.mangadex.use_flags && data.manga.originalLanguage)
+                    template += "${manga_lang} ";
+                if ((xlinks_api.config.mangadex.show_author || xlinks_api.config.mangadex.show_artist) && data.authors.length > 0 && this.author_num + this.artist_num > 0)
+                    template += "${author} ";
+                if (data.manga.title || data.manga.altTitles)
+                    template += "${manga} ";
+                if (xlinks_api.config.mangadex.show_volume && data.chapter.volume)
+                    template += "${volume} ";
+                if (data.chapter.chapter)
+                    template += "${chapter} ";
+                if (xlinks_api.config.mangadex.show_ch_title && data.chapter.title)
+                    template += "${title} ";
+                if (xlinks_api.config.mangadex.show_pages && data.chapter.pages)
+                    template += "${pages} ";
+                if (xlinks_api.config.mangadex.show_group && data.groups.length > 0)
+                    template += "${group}";
+
+                if (data.manga.originalLanguage)
+                    data.final.manga_lang = "["+data.manga.originalLanguage+"]";
+
+                if (data.authors.length > 0) {
+                    var author_names = Array();
+                    for (let i = 0; i < data.authors.length; i++) {
+                        if (xlinks_api.config.mangadex.show_author && data.author_ids.indexOf(data.authors[i].id) != -1 && author_names.indexOf(data.authors[i].name) == -1) {
+                            author_names.push(data.authors[i].name);
+                        }
+                        if (xlinks_api.config.mangadex.show_artist && data.artist_ids.indexOf(data.authors[i].id) != -1 && author_names.indexOf(data.authors[i].name) == -1) {
+                            author_names.push(data.authors[i].name);
+                        }
+                    }
+                    data.final.author = "[" + author_names.join(", ") + "]";
+                }
+
+                if (xlinks_api.config.mangadex.custom_title) {
+                    var title_order = xlinks_api.config.mangadex.title_search_order.replace(/\s+/g, "").split(",");
+                    var title_found = false;
+                    for (let i = 0; i < title_order.length; i++) {
+                        if (title_found) break;
+                        lcode = title_order[i];
+                        lcode = lcode.replace(/orig/i, data.manga.originalLanguage);
+                        if (data.manga.title[lcode] !== undefined) {
+                            data.final.manga = data.manga.title[lcode];
+                            break;
+                        }
+                        else {
+                            // altTitles is an array of objects with each single entries
+                            for (var j = 0; j < data.manga.altTitles.length; j++) {
+                                if (data.manga.altTitles[j][lcode] !== undefined) {
+                                    data.final.manga = data.manga.altTitles[j][lcode];
+                                    title_found = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!data.final.manga) {
+                    // take the default title
+                    let keys = Object.keys(data.manga.title);
+                    if (keys.length)
+                        data.final.manga = data.manga.title[keys[0]];
+                }
+
+                if (data.chapter.volume)
+                    data.final.volume = "vol. " + data.chapter.volume;
+                if (data.chapter.chapter)
+                    data.final.chapter = "ch. " + data.chapter.chapter;
+                if (data.chapter.title)
+                    data.final.title = '- "' + data.chapter.title + '"';
+                if (data.chapter.pages)
+                    data.final.pages = "(" + data.chapter.pages + "p)";
+                if (xlinks_api.config.mangadex.show_group && data.groups.length > 0) {
+                    combined_group_name = "";
+                    for (let i = 0; i < data.groups.length; i++) {
+                        combined_group_name += data.groups[i].name + ', '
+                    }
+                    combined_group_name = combined_group_name.replace(/, $/, "");
+                    data.final.group = "[" + combined_group_name + "]";
+                    if (combined_group_name == "null")
+                        console.log(["null group name:", data.groups]);
+                }
+
+                aggdata.title = interpolate(template, data.final);
+                aggdata.title = aggdata.title.replace(/^\s+/, "");
+                aggdata.title = aggdata.title.replace(/\s$/, "");
+                aggdata.title = aggdata.title.replace(/\s+/g, " ");
+
+                if (xlinks_api.config.mangadex.show_icon) {
+                    // modify the [MD] tag into an icon or flag
+                    // apply a style if the tag filter is tripped
+                    let icon_name = "site_MD";
+                    let apply_style = false;
+
+                    if (xlinks_api.config.mangadex.show_orig_lang && xlinks_api.config.mangadex.use_flags && lang_to_flag[data.manga.originalLanguage] !== undefined)
+                        icon_name = lang_to_flag[data.manga.originalLanguage]
+
+                    // search for tags matching the tag filter
+                    if (xlinks_api.config.mangadex.tag_filter.trim() !== "") {
+                        // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
+                        let tag_array = xlinks_api.config.mangadex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+
+                        for (let i = 0; i < data.manga.tags.length; i++) {
+                            if (data.manga.tags[i].attributes.name.en !== undefined) {
+                                if (tag_array.indexOf(data.manga.tags[i].attributes.name.en.toLowerCase()) >= 0) {
+                                    apply_style = true;
+                                    break;
+                                }
+                            }
+                        }
+                        // console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
+                    }
+
+                    this.tag_filter_tripped = apply_style;
+                    replace_icon(this.context, "mangadex", icon_name, apply_style);
+                }
+
+                this.callback(null, aggdata);
+            }
+        }
+
+        var md_aggregators = {};
+
         var md_get_data = function (info, callback) {
             var data = xlinks_api.cache_get(info.id);
             callback(null, data);
-        }._w(83);
+        }._w(78);
         var md_set_data = function (data, info, callback) {
             var lifetime = 7 * xlinks_api.ttl_1_day;
             if (info.lifetime !== undefined) lifetime = info.lifetime;
             xlinks_api.cache_set(info.id, data, lifetime);
             callback(null);
-        }._w(84);
+        }._w(79);
 
         var md_generic_api_xhr = function (callback) {
             var info = this.infos[0];
@@ -1719,7 +1733,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(85);
+        }._w(80);
         var md_generic_parse_response = function (xhr, callback) {
             // split xhr.context by '_' and forward to the actual parse_response function
             if (xhr.context) {
@@ -1737,7 +1751,7 @@
             }
             else
                 callback("Invalid response: No context.");
-        }._w(86);
+        }._w(81);
 
         var md_chapter_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -1749,14 +1763,14 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(87);
+        }._w(82);
         var md_chapter_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
                 return;
             }
 
-            jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
             if (jsdata == null || jsdata.data == undefined || jsdata.data.attributes == undefined) {
                 callback("Cannot parse response.");
                 return;
@@ -1777,7 +1791,7 @@
             // console.log(["parse_ch_response", jsdata.data, data]);
 
             callback(null, [data]);
-        }._w(88);
+        }._w(83);
 
         var md_manga_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -1789,7 +1803,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(89);
+        }._w(84);
         var md_manga_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
@@ -1804,9 +1818,9 @@
                 callback("Invalid response context");
                 return;
             }
-            var aggregator = aggregators[ctx[1]];
+            var aggregator = md_aggregators[ctx[1]];
 
-            jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
             if (jsdata == null || jsdata.data == undefined || jsdata.data.attributes == undefined) {
                 callback("Cannot parse response.");
                 return;
@@ -1831,7 +1845,7 @@
             aggregator.add_data("manga", data);
 
             callback(null, [data]);
-        }._w(90);
+        }._w(85);
         var md_get_other_manga_data = function (context, data, aggregator) {
             var has_authors = 0;
             var author_num = 0;
@@ -1936,7 +1950,7 @@
                 aggregator.artist_num = has_artists;
                 aggregator.validate();
             }
-        }._w(91);
+        }._w(86);
 
         var md_group_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -1948,7 +1962,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(92);
+        }._w(87);
         var md_group_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
@@ -1964,7 +1978,7 @@
                 return;
             }
 
-            jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
             if (jsdata == null || jsdata.data == undefined || jsdata.data.attributes == undefined) {
                 callback("Cannot parse response.");
                 return;
@@ -1976,10 +1990,10 @@
             };
 
             xlinks_api.cache_set("group_" + jsdata.data.id, data, 7 * xlinks_api.ttl_1_day);
-            aggregators[ctx[1]].add_data("group", data);
+            md_aggregators[ctx[1]].add_data("group", data);
 
             callback(null, [data]);
-        }._w(93);
+        }._w(88);
         
         var md_author_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
@@ -2008,10 +2022,10 @@
             };
 
             xlinks_api.cache_set("author_" + jsdata.data.id, data, 7 * xlinks_api.ttl_1_day);
-            aggregators[ctx[1]].add_data("author", data);
+            md_aggregators[ctx[1]].add_data("author", data);
 
             callback(null, [data]);
-        }._w(94);
+        }._w(89);
 
         var md_ch_url_get_info = function (url, callback) {
             var m = /(https?:\/*)?(?:www\.)?mangadex\.org\/chapter\/([a-z0-9\-]+)/i.exec(url),
@@ -2032,23 +2046,23 @@
                 //     url_info.includes.push("manga");
 
                 // hack a way to use the site icon as a language flag
-                // The DataAggregator will decide if it's an icon or flag and how to style it
+                // The MangadexDataAggregator will decide if it's an icon or flag and how to style it
                 if (xlinks_api.config.mangadex.show_icon)
-                    url_info.icon = "replaceme-"+url_info.id;
+                    url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
 
                 callback(null, url_info);
             }
             else {
                 callback(null, null);
             }
-        }._w(95);
+        }._w(90);
         var md_ch_url_info_to_data = function (url_info, callback) {
             // make chapter api call with its id as context
             // the parse_response functions will then add their data to the aggregator
             var ctx = url_info.context.split("_");
-            var aggregator = new DataAggregator(callback);
+            var aggregator = new MangadexDataAggregator(callback);
             aggregator.context = ctx[1];
-            aggregators[ctx[1]] = aggregator;
+            md_aggregators[ctx[1]] = aggregator;
 
             var chdata = xlinks_api.cache_get(url_info.id, null);
             if (chdata !== null) {
@@ -2064,7 +2078,7 @@
                     }
                 });
             }
-        }._w(96);
+        }._w(91);
         var md_get_other_ch_data = function (url_info, data, aggregator) {
             var has_manga = false;
             var has_groups = 0;
@@ -2145,19 +2159,23 @@
                 aggregator.group_num = has_groups;
                 aggregator.validate();
             }
-        }._w(97)
+        }._w(92);
 
         var md_create_actions = function (data, url_info, callback, retry = false) {
-            // console.log(["md_create_actions", data, url_info, callback, aggregators[url_info.id]]);
+            let aggregator = md_aggregators[url_info.id];
+            // console.log(["md_create_actions", data, url_info, aggregator]);
+
+            const tag_marker_Y = " [X]";
+            const tag_marker_N = "";
 
             // [id, base_title]
-            var title_data = [aggregators[url_info.id].data.manga.id, aggregators[url_info.id].data.final.manga];
+            var title_data = [aggregator.data.manga.id, aggregator.data.final.manga];
 
             // [[id, name], [id, name], ...]
             var group_data = Array();
-            if (aggregators[url_info.id].data.groups.length > 0) {
-                for (let i = 0; i < aggregators[url_info.id].data.groups.length; i++) {
-                    group_data.push([aggregators[url_info.id].data.groups[i].id, aggregators[url_info.id].data.groups[i].name]);
+            if (aggregator.data.groups.length > 0) {
+                for (let i = 0; i < aggregator.data.groups.length; i++) {
+                    group_data.push([aggregator.data.groups[i].id, aggregator.data.groups[i].name]);
                 }
             }
 
@@ -2165,16 +2183,16 @@
             var author_data = Array();
             var added_author_ids = Array();
             var mangadata;
-            if (aggregators[url_info.id].data.authors.length > 0) {
-                for (let i = 0; i < aggregators[url_info.id].data.authors.length; i++) {
-                    if (added_author_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1) continue;
+            if (aggregator.data.authors.length > 0) {
+                for (let i = 0; i < aggregator.data.authors.length; i++) {
+                    if (added_author_ids.indexOf(aggregator.data.authors[i].id) != -1) continue;
                     let roles = Array();
-                    if (aggregators[url_info.id].data.author_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1)
+                    if (aggregator.data.author_ids.indexOf(aggregator.data.authors[i].id) != -1)
                         roles.push("Author");
-                    if (aggregators[url_info.id].data.artist_ids.indexOf(aggregators[url_info.id].data.authors[i].id) != -1)
+                    if (aggregator.data.artist_ids.indexOf(aggregator.data.authors[i].id) != -1)
                         roles.push("Artist");
-                    author_data.push([aggregators[url_info.id].data.authors[i].id, aggregators[url_info.id].data.authors[i].name, roles]);
-                    added_author_ids.push(aggregators[url_info.id].data.authors[i].id);
+                    author_data.push([aggregator.data.authors[i].id, aggregator.data.authors[i].name, roles]);
+                    added_author_ids.push(aggregator.data.authors[i].id);
                 }
             }
             else {
@@ -2182,10 +2200,10 @@
                 var author_ids = Array();
                 var artist_ids = Array();
                 var author_list = Array();
-                if (aggregators[url_info.id].data.manga.relationships)
-                    mangadata = aggregators[url_info.id].data.manga;
+                if (aggregator.data.manga.relationships)
+                    mangadata = aggregator.data.manga;
                 else
-                    mangadata = xlinks_api.cache_get("manga_" + aggregators[url_info.id].data.manga.id);
+                    mangadata = xlinks_api.cache_get("manga_" + aggregator.data.manga.id);
                 if (mangadata !== null && mangadata.relationships) {
                     for (let i = 0; i < mangadata.relationships.length; i++) {
                         if (mangadata.relationships[i].type != "author" && mangadata.relationships[i].type != "artist") continue;
@@ -2207,14 +2225,14 @@
                     }
                 }
                 else {
-                    // console.log(["No cached manga data with relationships:", aggregators[url_info.id].data.manga.id, mangadata]);
+                    // console.log(["No cached manga data with relationships:", aggregator.data.manga.id, mangadata]);
                 }
             }
             if (author_data.length == 0 && !retry) {
                 // console.log("No authors found. Initiating new manga data request.");
                 let manga_url_info = {
-                    id: aggregators[url_info.id].data.manga.id,
-                    context: "manga_" + aggregators[url_info.id].data.chapter.id,
+                    id: aggregator.data.manga.id,
+                    context: "manga_" + aggregator.data.chapter.id,
                     type: "manga",
                     includes: ["author", "artist"],
                 };
@@ -2232,10 +2250,10 @@
             var tag_data = Array();
             var tag_groups = {};
             // console.log([]);
-            if (aggregators[url_info.id].data.manga.tags)
-                mangadata = aggregators[url_info.id].data.manga;
+            if (aggregator.data.manga.tags)
+                mangadata = aggregator.data.manga;
             else {
-                let cached_mangadata = xlinks_api.cache_get("manga_" + aggregators[url_info.id].data.manga.id);
+                let cached_mangadata = xlinks_api.cache_get("manga_" + aggregator.data.manga.id);
                 if (cached_mangadata.tags)
                     mangadata = cached_mangadata;
                 else
@@ -2266,50 +2284,53 @@
             }
 
             // array of [descriptor, url, link_text]
-            var urls = Array();
-            var base_url = "https://mangadex.org/";
-            var last_descriptor = "";
+            let urls = [];
+            let base_url = "https://mangadex.org/";
+            let last_descriptor = "";
+            let descriptor = "";
+            let tag_marker = "";
+            let tag_array = xlinks_api.config.mangadex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
 
             urls.push(["Title:", base_url + "title/" + title_data[0], title_data[1]]);
             for (let i = 0; i < group_data.length; i++) {
-                let descriptor = "Group:";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
+                descriptor = "Group:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
                 urls.push([descriptor, base_url + "group/" + group_data[i][0], group_data[i][1]]);
             }
             for (let i = 0; i < author_data.length; i++) {
-                let descriptor = author_data[i][2].join(", ") + ":";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
+                descriptor = author_data[i][2].join(", ") + ":";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
                 urls.push([descriptor, base_url + "author/" + author_data[i][0], author_data[i][1]]);
             }
             for (let i = 0; i < tag_data.length; i++) {
-                let descriptor = tag_data[i][2] + ":";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
-                urls.push([descriptor, base_url + "tag/" + tag_data[i][0], tag_data[i][1]]);
+                descriptor = tag_data[i][2] + ":";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
+                tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(tag_data[i][1].toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
+
+                urls.push([descriptor+tag_marker, base_url + "tag/" + tag_data[i][0], tag_data[i][1]]);
             }
 
             callback(null, urls);
-        }._w(98);
+        }._w(93);
+
 
         // Dynasty-Scans
-        var ds_get_data = function (info, callback) {
-            var data = xlinks_api.cache_get(info.id);
-            callback(null, data);
-        }._w(99);
-        var ds_set_data = function (data, info, callback) {
+        var ds_get_data = function (info) {
+            var data = xlinks_api.cache_get("ds_" + info.id);
+            return data;
+        }._w(94);
+        var ds_set_data = function (data, info, err_callback) {
             var lifetime = 7 * xlinks_api.ttl_1_day;
             if (info.lifetime !== undefined) lifetime = info.lifetime;
-            xlinks_api.cache_set(info.id, data, lifetime);
-            callback(null);
-        }._w(100);
+            xlinks_api.cache_set("ds_" + info.id, data, lifetime);
+            if (err_callback !== null) err_callback(null);
+        }._w(95);
 
         var ds_chapter_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -2317,7 +2338,7 @@
                 method: "GET",
                 url: "https://dynasty-scans.com/chapters/" + info.id,
             });
-        }._w(101);
+        }._w(96);
         var ds_chapter_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response.");
@@ -2419,7 +2440,7 @@
             data.title = ds_make_title(data, info);
 
             callback(null, [data]);
-        }._w(102);
+        }._w(97);
 
         var ds_ch_url_get_info = function (url, callback) {
             var m = /(https?:\/*)?(?:www\.)?dynasty-scans\.com\/chapters\/([^#]+)/i.exec(url),
@@ -2434,7 +2455,7 @@
 
                 if (xlinks_api.config.dynasty.show_icon) {
                     if (xlinks_api.config.dynasty.tag_filter.trim() !== "")
-                        url_info.icon = "replaceme-"+url_info.id;
+                        url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
                     else
                         url_info.icon = "site_DS";
                 }
@@ -2444,16 +2465,17 @@
             else {
                 callback(null, null);
             }
-        }._w(103);
+        }._w(98);
         var ds_ch_url_info_to_data = function (url_info, callback) {
-            var dsdata = xlinks_api.cache_get(url_info.id, null);
+            // var dsdata = xlinks_api.cache_get(url_info.id, null);
+            var dsdata = ds_get_data(url_info);
             if (dsdata !== null) {
                 dsdata.title = ds_make_title(dsdata, url_info);
                 callback(null, dsdata);
             }
             else
                 xlinks_api.request("dynasty", "chapter", url_info.id, url_info, callback);
-        }._w(104);
+        }._w(99);
 
         var ds_make_title = function (data, url_info) {
             var title = data.base_title;
@@ -2484,9 +2506,12 @@
             }
 
             return title;
-        }._w(105)
+        }._w(100);
 
         var ds_create_actions = function (data, info, callback, retry = false) {
+            const tag_marker_Y = " [X]";
+            const tag_marker_N = "";
+
             // console.log(["ds_create_actions", data, info, callback]);
             if (data.links == undefined) {
                 if (retry) {
@@ -2508,65 +2533,1129 @@
             var urls = Array();
             var base_url = "https://dynasty-scans.com";
             var last_descriptor = "";
+            let descriptor = "";
+            let tag_array = xlinks_api.config.dynasty.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+            let tag_marker = "";
 
             if (data.releasedAt)
                 urls.push(["Released:", null, data.releasedAt]);
+
             if (data.links.base_title.length > 0)
                 urls.push(["Title:", base_url + data.links.base_title[0], data.links.base_title[1]]);
+
             for (i=0; i < data.authors.length; i++) {
-                let descriptor = "Author:";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
+                descriptor = "Author:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
                 urls.push([descriptor, base_url + data.links.authors[data.authors[i]], data.authors[i]]);
             }
+
             for (i=0; i < data.groups.length; i++) {
-                let descriptor = "Group:";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
+                descriptor = "Group:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
                 urls.push([descriptor, base_url + data.links.groups[data.groups[i]], data.groups[i]]);
             }
+
             for (i=0; i < data.volumes.length; i++) {
-                let descriptor = "Volume:";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
+                descriptor = "Volume:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
                 urls.push([descriptor, base_url + data.links.volumes[data.volumes[i]], data.volumes[i]]);
             }
+
             for (i=0; i < data.tags.length; i++) {
-                let descriptor = "Tag:";
-                if (last_descriptor == descriptor)
-                    descriptor = "";
-                else
-                    last_descriptor = descriptor
-                urls.push([descriptor, base_url + data.links.tags[data.tags[i]], data.tags[i]]);
+                descriptor = "Tag:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor
+
+                tag_marker = (tag_array.indexOf(data.tags[i].toLowerCase()) >= 0) ? tag_marker_Y : tag_marker_N;
+
+                urls.push([descriptor+tag_marker, base_url + data.links.tags[data.tags[i]], data.tags[i]]);
             }
 
             callback(null, urls);
-        }._w(106);
+        }._w(101);
+
+
+        // bato.to
+        class BatoDataAggregator {
+            constructor(final_callback) {
+                this.callback = final_callback;
+                this.context = null;
+                this.tag_filter_tripped = false;
+                this.data = {
+                    series: {
+                        title: "",
+                        language: "",
+                        url: "",
+                        genres: [],
+                        // [[author, url], [author, url], ...]
+                        authors: Array(),
+                    },
+                    chapter: {
+                        series_id: "",
+                        num: "",    // e.g. "Volume 5 Chapter 21.5"
+                        title: "",  // e.g. "Extras: Volume 4 & Twitter Part 4"
+                        // pages: 0,
+                    }
+                };
+            }
+
+            add_data(category, data) {
+                this.data[category] = data;
+                this.validate();
+            }
+
+            validate() {
+                if (this.data.series.title == "") return;
+                if (this.data.chapter.num == "") return;
+
+                // make a usable object out of the categories
+                var aggdata = {
+                    language: "",
+                    author: "",
+                    series: "",
+                    chapter_num: "",
+                    chapter_title: "",
+                    // pages: "",
+                    title: "",
+                };
+                var template = "";
+
+                // "${language} ${author} ${series} ${chapter_num} ${chapter_title} ${pages} ${group}"
+                if (xlinks_api.config.bato.show_orig_lang && !xlinks_api.config.bato.use_flags && this.data.series.language)
+                    template += "${language} ";
+                if (xlinks_api.config.bato.show_author && this.data.series.authors.length > 0)
+                    template += "${author} ";
+                if (this.data.series.title)
+                    template += "${series} ";
+                if (this.data.chapter.num)
+                    template += "${chapter_num} ";
+                if (xlinks_api.config.bato.show_ch_title && this.data.chapter.title)
+                    template += "${chapter_title} ";
+                // if (xlinks_api.config.bato.show_pages && this.data.chapter.pages)
+                //     template += "${pages} ";
+
+                if (this.data.series.authors.length > 0) {
+                    let author_names = Array();
+                    for (let i = 0; i < this.data.series.authors.length; i++) {
+                        author_names.push(this.data.series.authors[i][0]);
+                    }
+                    aggdata.author = "[" + author_names.join(", ") + "]";
+                }
+
+                if (this.data.series.title)    aggdata.series        = this.data.series.title;
+                if (this.data.chapter.num)     aggdata.chapter_num   = this.data.chapter.num;
+                if (this.data.chapter.title)   aggdata.chapter_title = '- "' + this.data.chapter.title + '"';
+                if (this.data.series.language) aggdata.language      = '[' + this.data.series.language + ']';
+                if (this.data.chapter.pages)   aggdata.pages         = "(" + this.data.chapter.pages + "p)";
+
+                aggdata.title = interpolate(template, aggdata);
+                aggdata.title = aggdata.title.replace(/^\s+/, "");
+                aggdata.title = aggdata.title.replace(/\s$/, "");
+                aggdata.title = aggdata.title.replace(/\s+/g, " ");
+
+                if (xlinks_api.config.bato.show_icon) {
+                    // modify the [MD] tag into an icon or flag
+                    // apply a style if the tag filter is tripped
+                    let icon_name = "site_BT";
+                    let apply_style = false;
+
+                    if (xlinks_api.config.bato.show_orig_lang && xlinks_api.config.bato.use_flags && lang_to_flag[this.data.series.language] !== undefined)
+                        icon_name = lang_to_flag[this.data.series.language]
+
+                    // search for tags matching the tag filter
+                    if (xlinks_api.config.bato.tag_filter.trim() !== "") {
+                        // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
+                        let tag_array = xlinks_api.config.bato.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+
+                        for (let i = 0; i < this.data.series.genres.length; i++) {
+                            if (tag_array.indexOf(this.data.series.genres[i].toLowerCase()) >= 0) {
+                                apply_style = true;
+                                break;
+                            }
+                        }
+                        // console.log([aggdata.title, data.manga.tags, tag_array, apply_style])
+                    }
+
+                    this.tag_filter_tripped = apply_style;
+                    replace_icon(this.context, "bato", icon_name, apply_style);
+                }
+
+                this.callback(null, aggdata);
+            }
+        }
+
+        var bt_aggregators = {};
+
+        var bt_v3_lang_short = {
+            "Japanese": "jp",
+            "Korean": "kr",
+            "Chinese": "zh",
+            "Chinese (繁)": "zh",
+            "Chinese (粵)": "zh",
+            "Indonesian": "id",
+            "Thai": "th",
+        };
+
+        var bt_get_data = function (key) {
+            var data = xlinks_api.cache_get("bt_" + key);
+            return data;
+        }._w(102);
+        var bt_set_data = function (key, data, err_callback) {
+            var lifetime = 7 * xlinks_api.ttl_1_day;
+            xlinks_api.cache_set("bt_" + key, data, lifetime);
+            if (err_callback !== null) err_callback(null);
+        }._w(103);
+
+        var bt_chapter_setup_xhr = function (callback) {
+            var info = this.infos[0];
+
+            // context should be "chapter_{id}"
+            var ctx = null;
+            if (info.context !== undefined) ctx = info.context;
+
+            if (info.bt_version == 2) {
+                callback(null, {
+                    method: "GET",
+                    url: "https://bato.to/chapter/"+info.id+"/1",
+                    context: [2, "chapter", ctx],
+                });
+            } else if (info.bt_version == 3) {
+                callback(null, {
+                    method: "GET",
+                    url: "https://bato.to/title/"+info.series_id+"/"+info.id+"?load=0",
+                    context: [3, "chapter", ctx],
+                });
+            } else {
+                console.error(['bt_chapter_setup_xhr: Unsupported bt_version', info]);
+            }
+        }._w(104);
+        var bt_series_setup_xhr = function (callback) {
+            var info = this.infos[0];
+
+            // context should be "chapter_{id}"
+            var ctx = null;
+            if (info.context !== undefined) ctx = info.context;
+            callback(null, {
+                method: "GET",
+                url: "https://bato.to/title/"+info.series_id,
+                context: [3, "series", ctx],
+            });
+        }._w(105);
+        var bt_generic_parse_response = function (xhr, callback) {
+            var bt_version = xhr.context[0];
+            var resp_type = xhr.context[1];
+
+            if (resp_type == "chapter") {
+                if      (bt_version == 2) bt_chapter_v2_parse_response(xhr, callback);
+                else if (bt_version == 3) bt_chapter_v3_parse_response(xhr, callback);
+                else console.error(['bt_generic_parse_response: Unsupported chapter bt_version', xhr]);
+            } else if (resp_type = "series") {
+                if (bt_version == 3) bt_series_v3_parse_response(xhr, callback);
+                else console.error(['bt_generic_parse_response: Unsupported series bt_version', xhr]);
+            } else {
+                console.error(['bt_generic_parse_response: Unsupported response type', xhr]);
+            }
+        }._w(106)
+
+        var bt_chapter_v2_parse_response = function (xhr, callback) {
+            var ctx = xhr.context[2];
+            var chapter_id = ctx.split('_')[1];
+
+            var html = xlinks_api.parse_html(xhr.responseText, null);
+
+            var ch_data = {
+                series_id: "",
+                num: "",
+                title: "",
+                // pages: 0,
+            };
+
+            // ch_data.pages = $$('img.page-img', html).length;
+            // if (ch_data.pages == 0) ch_data.pages = $$('select optgroup[label="Page"] option', html).length;
+
+            var series_a = $('h3.nav-title a', html);
+            if (series_a !== null) {
+                // "https://bato.to/series/137465" or just "/series/137465"
+                let series_a_split = series_a.href.split('/');
+                ch_data.series_id = series_a_split[series_a_split.length - 1];
+
+                // make the series "API" request
+                url_info = {
+                    bt_version: 3,
+                    id: chapter_id,
+                    series_id: ch_data.series_id,
+                    site: "bato",
+                    type: "chapter",
+                    tag: "BT",
+                    context: ctx,
+                }
+
+                xlinks_api.request("bato", "series", url_info.series_id, url_info,
+                    (err, data) => {
+                        if (err !== null) return;
+                        bt_set_data("series_"+url_info.series_id, data, (err) => {});
+                        let aggregator = bt_aggregators[url_info.id];
+                        aggregator.add_data("series", data);
+                    }
+                );
+            } else console.error("bt_chapter_v2_parse_response: not found: 'h3.nav-title a'");
+
+            // get chapter title from the dropdown
+            var ch_option = $('select optgroup option[value="'+chapter_id+'"]', html);
+            if (ch_option !== null) {
+                // ch_option.innerText examples:
+                //      "Volume 1 Chapter 1\n           : You’re a Bad Girl, Huh?\n                  "
+                //      "Volume 5 Chapter 21.5\n           : Extras: Volume 4 & Twitter Part 4\n                  "
+                //      "Chapter 1\n                  "
+                // they always end on an extra \n and a bunch of spaces
+                let title_split = ch_option.innerText.split('\n');
+
+                if (title_split.length > 1) ch_data.num   = title_split[0].trim();
+                if (title_split.length > 2) ch_data.title = title_split[1].trim();
+
+                if (ch_data.title.startsWith(': ')) ch_data.title = ch_data.title.substring(2);
+            } else console.error("bt_chapter_v2_parse_response: not found: 'select optgroup option[value=\""+chapter_id+"\"]'");
+
+            callback(null, [ch_data]);
+        }._w(107);
+        var bt_chapter_v3_parse_response = function (xhr, callback) {
+            var ctx = xhr.context[2];
+            var chapter_id = ctx.split('_')[1];
+
+            var html = xlinks_api.parse_html(xhr.responseText, null);
+            // console.log(["bt_chapter_v3_parse_response", chapter_id, html]);
+
+            var ch_data = {
+                series_id: "",
+                num: "",
+                title: "",
+                // pages: 0,
+            };
+
+            // ch_data.pages = $$('div[name="image-item"]', html).length;
+            // console.log(["bt_chapter_v3_parse_response", "pages", $$('div[name="image-item"]', html)]);
+
+            var series_a = $('h3 a[href*="/title/"]', html);
+            if (series_a !== null) {
+                var title_m = /title\/(\d+)/.exec(series_a.href);
+                if (title_m) ch_data.series_id = title_m[1];
+            }
+
+            var ch_option = $('select optgroup[label="Chapters"] option[key="'+chapter_id+'"]', html);
+            // console.log(["bt_chapter_v3_parse_response", ch_option]);
+            if (ch_option !== null) {
+                // ch_option.innerText examples:
+                //      "Volume 5 Chapter 21.5 : Extras: Volume 4 & Twitter Part 4"
+                //      "Volume 1 Chapter 1 : You’re a Bad Girl, Huh?"
+                //      "Chapter 1"
+                let title_split = ch_option.innerText.split(' : ');
+
+                if (title_split.length > 0) ch_data.num   = title_split[0].trim();
+                if (title_split.length > 1) ch_data.title = title_split[1].trim();
+            } else console.error("bt_chapter_v3_parse_response: not found: 'select optgroup[label=\"Chapters\"] option[key=\""+chapter_id+"\"]'");
+
+            callback(null, [ch_data]);
+        }._w(108);
+        var bt_series_v3_parse_response = function (xhr, callback) {
+            const base_url = "https://bato.to";
+
+            var ctx = xhr.context[2];
+            var chapter_id = ctx.split('_')[1];
+            // console.log(["bt_series_v3_parse_response", xhr]);
+
+            var html = xlinks_api.parse_html(xhr.responseText, null);
+
+            var series_data = {
+                title: "",
+                language: "",
+                url: xhr.finalUrl,
+                genres: [],
+                authors: [],
+            };
+
+
+            var series_a = $('h3 a[href*="/title/"]', html);
+            if (series_a !== null) series_data.title = series_a.innerText;
+
+
+            var language_spans = $$('div.whitespace-nowrap span', html);
+            // console.log(["bt_series_v3_parse_response", "language_spans:", language_spans]);
+            if (language_spans.length > 0) {
+                // [🇬🇧, English, Tr From, 🇨🇳, Chinese]
+                let orig_lang = language_spans[language_spans.length - 1].innerText;
+                if (bt_v3_lang_short[orig_lang] !== undefined) series_data.language = bt_v3_lang_short[orig_lang];
+            } else console.error("bt_series_v3_parse_response: not found: 'div.whitespace-nowrap span'");
+
+
+            // <div class="flex items-center flex-wrap">
+            //     <b class="hidden md:inline-block mr-2 text-base-content/50">Genres:</b>
+            //     <span>
+            //         <span class="font-bold">Manhua</span>
+            //         <span class="text-base-content/80 px-1">,</span>
+            //     </span>
+            //     <span>
+            //         <span class="font-bold">Webtoon</span>
+            //         <span class="text-base-content/80 px-1">,</span>
+            //     </span>
+
+            // Maybe there's smart jquery that find this thing in one line, but I don't know it
+            var genre_list_candidates_b = $$('div.flex b', html);
+            var genre_list_div = null;
+            var genre_spans = [];
+
+            for (var i = 0; i < genre_list_candidates_b.length; i++) {
+                if (genre_list_candidates_b[i].innerText.includes('Genres:')) {
+                    genre_list_div = genre_list_candidates_b[i].parentNode;
+                    break;
+                }
+            }
+
+            if (genre_list_div !== null)
+                genre_spans = $$('span span:nth-child(1)', genre_list_div);
+            else console.error("bt_series_v3_parse_response: not found: 'span span:nth-child(1)'");
+
+            for (var i = 0; i < genre_spans.length; i++) {
+                series_data.genres.push(genre_spans[i].innerText);
+            }
+
+
+            // authors
+            //  [[author, url], [author, url], ...]
+            var author_a_list = $$('div.mt-3 div.mt-2 a[href*="v3x-search"]', html);
+            for (var i = 0; i < author_a_list.length; i++) {
+                // the .href attribute gets expanded automatically with the current domain
+                series_data.authors.push([author_a_list[i].innerText, base_url+author_a_list[i].getAttribute('href')]);
+            }
+
+
+            // console.log(["bt_series_v3_parse_response", series_data]);
+            callback(null, [series_data]);
+        }._w(109);
+
+        var bt_ch_url_get_info = function (url, callback) {
+            let series_id, chapter_id;
+
+            // https://bato.to/chapter/3362345
+            // no series_id in the url
+            let m_v2 = /(https?:\/*)?(?:www\.)?bato.to\/chapter\/(\d+)/i.exec(url);
+            // https://bato.to/title/137465-destroy-it-all-and-love-me-in-hell/3362345-vol_5-ch_21.5
+            // https://bato.to/title/{series_id}-.../{chapter_id}-...
+            let m_v3 = /(https?:\/*)?(?:www\.)?bato.to\/title\/(\d+)-[^\/]+\/(\d+)/i.exec(url);
+
+            // console.log(["bt_ch_url_get_info", url, m_v2, m_v3]);
+
+            if (m_v2 !== null) {
+                // get the chapter html first and figure out the series url from there
+                var url_info = {
+                    bt_version: 2,
+                    id: m_v2[2],
+                    site: "bato",
+                    type: "chapter",
+                    tag: "BT",
+                    context: "chapter_" + m_v2[2],
+                }
+
+                // bato.to has language flags as well
+                if (xlinks_api.config.bato.show_icon)
+                    url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
+
+                // console.log(["bt_ch_url_get_info", "v2", url_info]);
+                callback(null, url_info);
+            } else if (m_v3 !== null) {
+                // we can get both chapter and series html at once here
+                var url_info = {
+                    bt_version: 3,
+                    series_id: m_v3[2],
+                    id: m_v3[3],
+                    site: "bato",
+                    type: "chapter",
+                    tag: "BT",
+                    context: "chapter_" + m_v3[3],
+                }
+
+                // bato.to has language flags as well
+                if (xlinks_api.config.bato.show_icon)
+                    url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
+
+                // console.log(["bt_ch_url_get_info", "v3", url_info]);
+                callback(null, url_info);
+            } else {
+                callback(null, null);
+            }
+        }._w(110);
+        var bt_ch_url_info_to_data = function (url_info, callback) {
+            var aggregator = new BatoDataAggregator(callback);
+            aggregator.context = url_info.id;
+            bt_aggregators[url_info.id] = aggregator;
+
+            var chapterdata = bt_get_data("chapter_"+url_info.id);
+            var series_id = null;
+
+            if (url_info.bt_version == 3)  series_id = url_info.series_id;
+            else if (chapterdata !== null) series_id = chapterdata.series_id;
+            url_info.series_id = url_info.series_id || series_id;
+
+            var seriesdata = bt_get_data("series_"+url_info.series_id);
+            // console.log(["bt_ch_url_info_to_data", url_info, series_id, chapterdata, seriesdata]);
+
+            if (chapterdata !== null) {
+                aggregator.add_data("chapter", chapterdata);
+            } else {
+                // console.log(["bt_ch_url_info_to_data", "making chapter request", url_info.id, url_info]);
+                xlinks_api.request("bato", "chapter", url_info.id, url_info, 
+                    (err, data) => {
+                        if (err !== null) return;
+                        bt_set_data("chapter_"+url_info.id, data, (err) => {});
+                        aggregator.add_data("chapter", data);
+                    }
+                );
+            }
+
+            if (seriesdata !== null) {
+                aggregator.add_data("series", seriesdata);
+            } else if (series_id) {
+                // console.log(["bt_ch_url_info_to_data", "making series request", series_id, url_info]);
+                xlinks_api.request("bato", "series", series_id, url_info,
+                    (err, data) => {
+                        if (err !== null) return;
+                        bt_set_data("series_"+series_id, data, (err) => {});
+                        aggregator.add_data("series", data);
+                    }
+                );
+            }
+        }._w(111);
+
+        var bt_create_actions = function (data, info, callback, retry = false) {
+            const tag_marker_Y = " [X]";
+            const tag_marker_N = "";
+
+            // Todo: incorporate retry into this if necessary
+            var aggregator = bt_aggregators[info.id];
+            if (aggregator == undefined && !retry) return;
+
+            // array of [descriptor, url, link_text]
+            var urls = [];
+            var last_descriptor = "";
+            let descriptor = "";
+            let tag_array = xlinks_api.config.bato.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+            let tag_marker = "";
+
+            if (aggregator.data.series.title) {
+                descriptor = "Title:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                if (aggregator.data.series.url)
+                    urls.push([descriptor, aggregator.data.series.url, aggregator.data.series.title]);
+                else
+                    urls.push([descriptor, null, aggregator.data.series.title]);
+            }
+
+            for (var i = 0; i < aggregator.data.series.authors.length; i++) {
+                descriptor = "Author:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                urls.push([descriptor, aggregator.data.series.authors[i][1], aggregator.data.series.authors[i][0]]);
+            }
+
+            for (var i = 0; i < aggregator.data.series.genres.length; i++) {
+                descriptor = "Genre:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(aggregator.data.series.genres[i].toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
+
+                urls.push([descriptor+tag_marker, null, aggregator.data.series.genres[i]]);
+            }
+
+            callback(null, urls);
+        }._w(112);
+
+
+        // comick.io
+        class ComickDataAggregator {
+            constructor(final_callback) {
+                this.callback = final_callback;
+                this.context = null;
+                this.tag_filter_tripped = false;
+                this.data = {
+                    series: {
+                        slug: "",
+                        // the default title
+                        title: "",
+                        // other language titles
+                        // some have a "null" language in the API; we ignore those
+                        // {"ja": "忍者と殺し屋のふたりぐらし", "ru": "Жизнь ниндзя и убийцы", ...}
+                        titles: {},
+                        // "iso639_1"
+                        language: "",
+                        // {genre_group: [[genre_name, genre_slug], ...], ...}
+                        genres: {},
+                        // [[tag_name, tag_slug], ...]
+                        tags: [],
+                        // [[author_name, author_slug, is_artist, is_author], ...]
+                        authors: [],
+                    },
+                    chapter: {
+                        vol: "",    // e.g. "5"
+                        num: "",    // e.g. "21.5"
+                        title: "",  // e.g. "Extras: Volume 4 & Twitter Part 4"
+                        pages: 0,
+                        // [[group_name, group_slug], [group_name, group_slug], ...]
+                        groups: [],
+
+                    },
+                    final_title: "",
+                };
+            }
+
+            add_data(category, data) {
+                this.data[category] = data;
+                this.validate();
+            }
+
+            validate() {
+                if (this.data.series.title == "") return;
+                if (this.data.chapter.num == "") return;
+
+                // make a usable object out of the categories
+                var aggdata = {
+                    language: "",
+                    author: "",
+                    series: "",
+                    volume: "",
+                    chapter: "",
+                    chapter_title: "",
+                    pages: "",
+                    title: "",
+                    group: "",
+                };
+                var template = "";
+
+                // "${language} ${author} ${series} ${chapter_num} ${chapter_title} ${pages} ${group}"
+                if (xlinks_api.config.comick.show_orig_lang && !xlinks_api.config.comick.use_flags && this.data.series.language)
+                    template += "${language} ";
+                if (xlinks_api.config.comick.show_author && this.data.series.authors.length > 0)
+                    template += "${author} ";
+                if (this.data.series.title)
+                    template += "${series} ";
+                if (xlinks_api.config.comick.show_volume && this.data.chapter.vol)
+                    template += "${volume} ";
+                if (this.data.chapter.num)
+                    template += "${chapter} ";
+                if (xlinks_api.config.comick.show_ch_title && this.data.chapter.title)
+                    template += "${chapter_title} ";
+                if (xlinks_api.config.comick.show_pages && this.data.chapter.pages)
+                    template += "${pages} ";
+                if (xlinks_api.config.comick.show_group && data.chapter.groups.length > 0)
+                    template += "${group}";
+
+                if (this.data.series.authors.length > 0) {
+                    let author_names = [];
+                    for (let i = 0; i < this.data.series.authors.length; i++) {
+                        author_names.push(this.data.series.authors[i][0]);
+                    }
+                    aggdata.author = "[" + author_names.join(", ") + "]";
+                }
+
+                if (this.data.series.title) {
+                    // default title
+                    aggdata.series = this.data.series.title;
+
+                    if (xlinks_api.config.comick.custom_title) {
+                        let title_order = xlinks_api.config.comick.title_search_order.replace(/\s+/g, "").split(",");
+                        let title_found = false;
+
+                        for (var i = 0; i < title_order.length; i++) {
+                            if (title_found) break;
+                            let lcode = title_order[i].replace(/orig/i, this.data.series.language);
+                            console.log([this.data.series.title, lcode, this.data.series.titles[lcode]]);
+                            if (this.data.series.titles[lcode] !== undefined) {
+                                aggdata.series = this.data.series.titles[lcode];
+                                title_found = true;
+                            }
+                        }
+                    }
+
+                    this.data.final_title = aggdata.series;
+                }
+
+                if (this.data.chapter.vol)     aggdata.volume        = "vol. " + this.data.chapter.vol;
+                if (this.data.chapter.num)     aggdata.chapter       = "ch. " + this.data.chapter.num;
+                if (this.data.chapter.title)   aggdata.chapter_title = '- "' + this.data.chapter.title + '"';
+                if (this.data.series.language) aggdata.language      = '[' + this.data.series.language + ']';
+                if (this.data.chapter.pages)   aggdata.pages         = "(" + this.data.chapter.pages + "p)";
+
+                if (xlinks_api.config.comick.show_group && this.data.chapter.groups.length > 0) {
+                    let group_names = [];
+                    for (var i = 0; i < this.data.chapter.groups.length; i++) {
+                        group_names.push(this.data.chapter.groups[i][0]);
+                    }
+                    aggdata.group = "[" + group_names.join(", ") + "]";
+                }
+
+                aggdata.title = interpolate(template, aggdata);
+                aggdata.title = aggdata.title.replace(/^\s+/, "");
+                aggdata.title = aggdata.title.replace(/\s$/, "");
+                aggdata.title = aggdata.title.replace(/\s+/g, " ");
+
+                if (xlinks_api.config.comick.show_icon) {
+                    // modify the [MD] tag into an icon or flag
+                    // apply a style if the tag filter is tripped
+                    let icon_name = "site_CK";
+                    let apply_style = false;
+
+                    if (xlinks_api.config.comick.show_orig_lang && xlinks_api.config.comick.use_flags && lang_to_flag[this.data.series.language] !== undefined)
+                        icon_name = lang_to_flag[this.data.series.language]
+
+                    // search for tags matching the tag filter
+                    if (xlinks_api.config.comick.tag_filter.trim() !== "") {
+                        // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
+                        let tag_array = xlinks_api.config.comick.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+
+                        // check genres
+                        Object.keys(this.data.series.genres).forEach(key => {
+                            for (var i = 0; i < this.data.series.genres.length; i++) {
+                                if (tag_array.indexOf(this.data.series.genres[i][0].toLowercase() >= 0)) {
+                                    apply_style = true;
+                                    break;
+                                }
+                            }
+                        });
+
+                        // check tags
+                        if (!apply_style) {
+                            for (let i = 0; i < this.data.series.tags.length; i++) {
+                                if (tag_array.indexOf(this.data.series.tags[i][0].toLowerCase()) >= 0) {
+                                    apply_style = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    this.tag_filter_tripped = apply_style;
+                    replace_icon(this.context, "comick", icon_name, apply_style);
+                }
+
+                // For some reason I absolutely cannot grasp, calling the callback before the previous block
+                // will lead to this.tag_filter_tripped being unreadable with its final value. I suspect some
+                // sort of "optimization" that removes writes to fields if they're no longer read afterwards.
+                // console.log(["validate", this.context, this, aggdata]);
+                this.callback(null, aggdata);
+            }
+        }
+
+        var ck_aggregators = {};
+
+        var ck_get_data = function (key) {
+            var data = xlinks_api.cache_get("ck_" + key);
+            return data;
+        }._w(113);
+        var ck_set_data = function (key, data, err_callback) {
+            var lifetime = 7 * xlinks_api.ttl_1_day;
+            xlinks_api.cache_set("ck_" + key, data, lifetime);
+            if (err_callback !== null) err_callback(null);
+        }._w(114);
+
+        var ck_chapter_setup_xhr = function (callback) {
+            var info = this.infos[0];
+            var ctx = null;
+            if (info.context !== undefined) ctx = info.context;
+
+            callback(null, {
+                method: "GET",
+                url: "https://api.comick.fun/chapter/"+info.id+"/?tachiyomi=false",
+                headers: {"accept": "application/json"},
+                context: ctx,
+            });
+        }._w(115);
+        var ck_chapter_parse_response = function (xhr, callback) {
+            if (xhr.status !== 200) {
+                callback("Invalid response");
+                return;
+            }
+
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            // console.log(["ck_chapter_parse_response", jsdata]);
+            if (jsdata == null) {
+                callback("Cannot parse response");
+                return;
+            }
+
+            var ch_data = {
+                vol: jsdata.chapter.vol || "",
+                num: jsdata.chapter.chap || "",
+                title: jsdata.chapter.title || "",
+                pages: 0,
+                // [[group_name, group_slug], [group_name, group_slug], ...]
+                groups: [],
+            };
+
+            if (jsdata.chapter.md_images) ch_data.pages = jsdata.chapter.md_images.length;
+
+            if (jsdata.chapter.md_chapters_groups) {
+                for (var i = 0; i < jsdata.chapter.md_chapters_groups.length; i++) {
+                    // "md_chapters_groups": [
+                    //   {
+                    //     "md_group_id": 35088,
+                    //     "md_groups": {
+                    //       "slug": "underpaid-civ-eng-scans",
+                    //       "title": "Underpaid CivEng Scans"
+                    //     }
+                    //   }
+                    // ]
+                    let group_data = jsdata.chapter.md_chapters_groups[i];
+                    ch_data.groups.push([group_data.md_groups.title, group_data.md_groups.slug]);
+                }
+            }
+
+            callback(null, [ch_data]);
+        }._w(116);
+
+        var ck_series_setup_xhr = function (callback) {
+            var info = this.infos[0];
+            var ctx = null;
+            if (info.context !== undefined) ctx = info.context;
+
+            callback(null, {
+                method: "GET",
+                url: "https://api.comick.fun/comic/"+info.series_id+"/?tachiyomi=false",
+                headers: {"accept": "application/json"},
+                context: ctx,
+            });
+        }._w(117);
+        var ck_series_parse_response = function (xhr, callback) {
+            const base_url = "https://comick.io";
+
+            if (xhr.status !== 200) {
+                callback("Invalid response");
+                return;
+            }
+
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            // console.log(["ck_series_parse_response", jsdata]);
+            if (jsdata == null) {
+                callback("Cannot parse response");
+                return;
+            }
+
+            var series_data = {
+                slug: jsdata.comic.slug || "",
+                // the default title
+                title: jsdata.comic.title || "",
+                // other language titles
+                // some have a "null" language in the API; we ignore those
+                // {"ja": "忍者と殺し屋のふたりぐらし", "ru": "Жизнь ниндзя и убийцы", ...}
+                titles: {},
+                // "iso639_1"
+                language: jsdata.comic.iso639_1 || jsdata.comic.country || "",
+                // {genre_group: [[genre_name, genre_slug], ...], ...}
+                genres: {},
+                // [[tag_name, tag_slug], ...]
+                tags: [],
+                // [[author_name, author_slug, is_artist, is_author], ...]
+                authors: [],
+            };
+
+
+            if (jsdata.comic.md_titles) {
+                for (var i = 0; i < jsdata.comic.md_titles.length; i++) {
+                    // "md_titles": [
+                    //   {
+                    //     "title": "アンドロイドは経験人数に入りますか？？",
+                    //     "lang": "ja"
+                    //   },
+                    //   ...
+                    // ]
+                    let title_data = jsdata.comic.md_titles[i];
+                    // ignore "null" languages
+                    if (title_data.lang && series_data.titles[title_data.lang] == undefined)
+                        series_data.titles[title_data.lang] = title_data.title;
+                }
+            }
+
+
+            if (jsdata.comic.md_comic_md_genres) {
+                for (var i = 0; i < jsdata.comic.md_comic_md_genres.length; i++) {
+                    // "md_comic_md_genres": [
+                    //   {
+                    //     "md_genres": {
+                    //       "name": "Ecchi",
+                    //       "type": "main",
+                    //       "slug": "ecchi",
+                    //       "group": "Content"
+                    //     }
+                    //   },
+                    //   ...
+                    // ]
+                    let genre_data = jsdata.comic.md_comic_md_genres[i].md_genres;
+                    if (series_data.genres[genre_data.group] == undefined) series_data.genres[genre_data.group] = [];
+                    series_data.genres[genre_data.group].push([genre_data.name, genre_data.slug]);
+                }
+            }
+
+
+            if (jsdata.comic.mu_comics && jsdata.comic.mu_comics.mu_comic_categories) {
+                for (var i = 0; i < jsdata.comic.mu_comics.mu_comic_categories.length; i++) {
+                    // "mu_comic_categories": [
+                    //   {
+                    //     "mu_categories": {
+                    //       "title": "Android/s",
+                    //       "slug": "android-s"
+                    //     },
+                    //     "positive_vote": 5,
+                    //     "negative_vote": 0
+                    //   },
+                    //   ...
+                    // ]
+                    let tag_data = jsdata.comic.mu_comics.mu_comic_categories[i].mu_categories;
+                    series_data.tags.push([tag_data.title, tag_data.slug]);
+                }
+            }
+
+
+            // {slug: [name, is_artist, is_author]}
+            let author_data = {};
+
+            if (jsdata.artists) {
+                for (var i = 0; i < jsdata.artists.length; i++) {
+                    // "artists": [
+                    //   {
+                    //     "name": "Yakiniku Teishoku",
+                    //     "slug": "yakiniku-teishoku"
+                    //   }
+                    // ]
+                    author_data[jsdata.artists[i].slug] = [jsdata.artists[i].name, true, false];
+                }
+            }
+
+            if (jsdata.authors) {
+                for (var i = 0; i < jsdata.authors.length; i++) {
+                    // "authors": [
+                    //   {
+                    //     "name": "Yakiniku Teishoku",
+                    //     "slug": "yakiniku-teishoku"
+                    //   }
+                    // ]
+                    if (author_data[jsdata.authors[i].slug] == undefined)
+                        author_data[jsdata.authors[i].slug] = [jsdata.authors[i].name, false, true];
+                    else
+                        author_data[jsdata.authors[i].slug][2] = true;
+                }
+            }
+
+            Object.keys(author_data).forEach(key => {
+                series_data.authors.push([author_data[key][0], key, author_data[key][1], author_data[key][2]]);
+            });
+
+
+            // console.log(["ck_series_parse_response", "series_data", series_data]);
+            callback(null, [series_data]);
+        }._w(118);
+
+        var ck_ch_url_get_info = function (url, callback) {
+            let series_id, chapter_id;
+
+            let m = /(https?:\/*)?(?:www\.)?comick.io\/comic\/([^\/]+)\/([^\/\-]+)/i.exec(url);
+
+            if (m !== null) {
+                var url_info = {
+                    series_id: m[2],
+                    id: m[3],
+                    site: "comick",
+                    type: "chapter",
+                    tag: "CK",
+                    context: "chapter_"+m[3],
+                };
+
+                // comick.io has a "country" field we can use for country flags
+                if (xlinks_api.config.comick.show_icon)
+                    url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
+
+                callback(null, url_info);
+            } else {
+                callback(null, null);
+            }
+        }._w(119);
+        var ck_ch_url_info_to_data = function (url_info, callback) {
+            var aggregator = new ComickDataAggregator(callback);
+            aggregator.context = url_info.id;
+            ck_aggregators[url_info.id] = aggregator;
+
+            var chapterdata = ck_get_data("chapter_"+url_info.id);
+            var seriesdata = ck_get_data("series_"+url_info.series_id);
+
+            // console.log(["ck_ch_url_info_to_data", url_info.series_id, url_info.id, chapterdata, seriesdata]);
+
+            if (chapterdata !== null) {
+                aggregator.add_data("chapter", chapterdata);
+            } else {
+                xlinks_api.request("comick", "chapter", url_info.id, url_info,
+                    (err, data) => {
+                        if (err !== null) return;
+                        ck_set_data("chapter_"+url_info.id, data, (err) => {});
+                        aggregator.add_data("chapter", data);
+                    }
+                );
+            }
+
+            if (seriesdata !== null) {
+                aggregator.add_data("series", seriesdata);
+            } else {
+                xlinks_api.request("comick", "series", url_info.series_id, url_info,
+                    (err, data) => {
+                        if (err !== null) return;
+                        ck_set_data("series_"+url_info.series_id, data, (err) => {});
+                        aggregator.add_data("series", data);
+                    }
+                );
+            }
+        }._w(120);
+
+        var ck_create_actions = function (data, info, callback) {
+            let aggregator = ck_aggregators[info.id];
+
+            // do nothing if the aggregator doesn't have all the data yet
+            if (aggregator.data.final_title == undefined) return;
+
+            const base_url_series = "https://comick.io/comic/";
+            const base_url_group  = "https://comick.io/group/";
+            const base_url_author = "https://comick.io/people/";
+            const base_url_genre  = "https://comick.io/search?genres=";
+            const base_url_tag    = "https://comick.io/search?tags=";
+            const tag_marker_Y    = " [X]";
+            const tag_marker_N    = "";
+
+            // [[author_name, author_slug], ...]
+            let artists_authors = [];
+            let authors = [];
+            let artists = [];
+
+            for (var i = 0; i < aggregator.data.series.authors.length; i++) {
+                let [author_name, author_slug, is_artist, is_author] = aggregator.data.series.authors[i];
+
+                if (is_artist && is_author) artists_authors.push([author_name, author_slug]);
+                else if (is_artist)         artists.push([author_name, author_slug]);
+                else if (is_author)         authors.push([author_name, author_slug]);
+            }
+
+
+
+            // array of [descriptor, url, link_text]
+            let urls = [];
+            let last_descriptor = "";
+            let descriptor = "";
+            let tag_array = xlinks_api.config.comick.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+            let tag_marker = "";
+
+
+            if (aggregator.data.final_title) {
+                descriptor = "Title:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                if (aggregator.data.series.slug)
+                    urls.push([descriptor, base_url_series+aggregator.data.series.slug, aggregator.data.final_title]);
+                else
+                    urls.push([descriptor, null, aggregator.data.final_title]);
+            }
+
+            for (var i = 0; i < aggregator.data.chapter.groups.length; i++) {
+                descriptor = "Group:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [group_name, group_slug] = aggregator.data.chapter.groups[i];
+                urls.push([descriptor, base_url_group+group_slug, group_name]);
+            }
+
+            for (var i = 0; i < artists_authors.length; i++) {
+                descriptor = "Artist & Author:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [author_name, author_slug] = artists_authors[i];
+                urls.push([descriptor, base_url_author+author_slug, author_name]);
+            }
+
+            for (var i = 0; i < artists.length; i++) {
+                descriptor = "Artist:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [author_name, author_slug] = artists[i];
+                urls.push([descriptor, base_url_author+author_slug, author_name]);
+            }
+
+            for (var i = 0; i < authors.length; i++) {
+                descriptor = "Author:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [author_name, author_slug] = authors[i];
+                urls.push([descriptor, base_url_author+author_slug, author_name]);
+            }
+
+            Object.keys(aggregator.data.series.genres).forEach(key => {
+                for (var i = 0; i < aggregator.data.series.genres[key].length; i++) {
+                    descriptor = key + ":";
+                    if (last_descriptor == descriptor) descriptor = "";
+                    else last_descriptor = descriptor;
+
+                    let [genre_name, genre_slug] = aggregator.data.series.genres[key][i];
+                    tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(genre_name.toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
+                    // console.log([genre_name, aggregator, aggregator.tag_filter_tripped, tag_array.indexOf(genre_name.toLowerCase()), tag_marker]);
+
+                    urls.push([descriptor+tag_marker, base_url_genre+genre_slug, genre_name]);
+                }
+            });
+
+            for (var i = 0; i < aggregator.data.series.tags.length; i++) {
+                descriptor = "Tag:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [tag_name, tag_slug] = aggregator.data.series.tags[i];
+                tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(tag_name.toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
+                // console.log([tag_name, aggregator, aggregator.tag_filter_tripped, tag_array.indexOf(tag_name.toLowerCase()), tag_marker]);
+
+                urls.push([descriptor+tag_marker, base_url_tag+tag_slug, tag_name]);
+            }
+
+            callback(null, urls);
+        }._w(121);
+
+
+
 
         xlinks_api.init({
             namespace: "mangadex",
             name: "Mangadex & Dynasty links",
             author: "mycropen",
-            description: "Linkify and format Mangadex & Dynasty-Scans links",
-            version: [1,5,-0xDB],
+            description: "Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to",
+            version: [1,6,-0xDB],
             registrations: 1,
             main: main_fn
         }, function (err) {
             if (err === null) {
-                xlinks_api.insert_styles(".xl-site-tag-icon[data-xl-site-tag-icon=lang_jp]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAUVBMVEX////89ffstsPjlaj77/LacYq+CTS8AC2/CjXacov78PP22+HGJUvGJkz23OLac4z99vjst8Tjlqnkl6nkmKrsuMW/CzbbdY3GJ0323ePadI1SYYEeAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkH80BkfYAAAB6SURBVCjPzZHJDoAgDEQRVBCVVXD5/w+VGIMQSrj6rvOaTlqE/kaHCcFdNe6HkQbYxOF8XujLKsD5mAejB4SBJkigH0sFpgpB0wxdCCYXbCHYXNhaK1yjpC9LIpkKO3AHvn75AR5bROM4K8+STw9/VZ4VUM4Yp9DfuAEcEgb8vRe9xgAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMy0wMS0xMlQwMTozMToyMiswMDowMJwMZyQAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjMtMDEtMTBUMDM6NTA6NTkrMDA6MDAFGLMuAAAAAElFTkSuQmCC)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_cn]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAclBMVEXuHCXxQB/xRx7vKSP4oBD4pA/uHyX0cRf0cBfwOCDuIiTuICTuHSXvJCTvKyP6vQvxSh381wfvKCPvLyL6tgz//wDwMiH1fhX4mxD6uwv6wgryUB3vIyT1dxbyURz+7wPvJyP2iRP4oQ/zXRrzWRv///96F0p+AAAAAWJLR0QlwwHJDwAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkN/i0OQwAAABvSURBVCjPY2AgATAy4ZRiZgaRLKxsuBSwc4ApTi5uHiyyvHx8/Px8fLxApoCgEBYFwiKiQMAvBmRyiQtjtUFCVFQCr/MlpaQkISxprPIysjw8sjIglpy8GF6TFPiEufHJKyqx4dXPoKzCMAoGMwAAo/cEXRjamKYAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_kr]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABoVBMVEX///+7u7vCwsLBwcG9vb3u7u4cHBySkpJ5eXl2dnYdHR3w8PBeXl5paWkwMDCHh4c3Nzf4+Pj29vaFhYU0NDRmZmaOjo6zs7MiIiJzc3NLS0tRUVF+fn56enpNTU1JSUmMjIxnZ2e2trbv7+8eHh4VFRWGhoYuLi75+fn9+PnpparYXGXPN0LPOEPYXWbqqa7++/tqamqxsbEXFxcbGxvNzc1/f3/Ozs733+HSQ07NLjrXWWL66+zY2NgYGBh8fHzPz8/09PSQkJBOTk739ffMOkdSUlKPj4/19fWkhKLrq6++vr56T3y0MUaWNVa3MUXZX2g0Rox7OGMCRp8AR6ADR55vOmjQPEcJTaNoOmzLLzvLLjtiO2+pP1kzbLMZRJQ3QIQXRJV9VYCOrdWjjaqUlJRPT099fX32+fwtZ7EyaK/69/lTU1PQ0NCAgIAxMTHh6fQya7Pm7fbX19czMzPT09MkJCSgoKD3+fyQr9Y1bbQKTqQ3b7SUstf5+/0nJyeRkZG0tLQhISGsrKxXV1d4eHhlZWX+/v5xcXG5ubm8vLzgoCRaAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAElAS4VndQAAAFISURBVCjPY2CgEmBkQhdhZkHmsbKxc6DKc7JzcSNxeXj5+AUEEXwhAWERUTEEX1xCUkpaBtkAWTl5BUUlGE9ZhV1VTV2DgUFTS1tHV0/fgIFBw9DImN2EFarA1IyP39icgcHC0goMrG0YGGzthEXsHWBGODo5Ay1wcbWCAmugGbJu7h5IdrIALfC0ggMvBgZBb4yw8IFI+vr5WwVgDaxAsHxQcEhoWDhWBRGRUVbRMSEgEItVQVxIfEIiWD4kCUOSCejI5BA4SAE6Ejl2PFLT0hkYMjJh8lnZDAwcOexCMPncvHx+Y1MGhgKoisIiBoZiO+ESs1KoAm4V9rJyUFBXVFZVV9fU1gEtMDSvb2CDBTVDY1Nzi3Q6spta03JYRJUQfB7efP4SISRHlQiLtKWiJhjJdmQT2jsaVJATDEMnSgIDga4uBioBAMJERI7yM7r7AAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_hk]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABFFBMVEW6AAC6AQHFKSntvLzrtLS+DQ345OT+/f355+e7AgLWZmb+/Pzwycn////DIiLGKyvBGxu/ERHfiYnyzs7HMjLfiorilZXUYGC8BwfadXXxzc3VZ2f45eXln5/TXFz77+/vw8O7AwPTXl7xy8vYbm7ruLjGLCzmpqbtvr767u756urMQ0O8CAjz09P99vb34uLwx8fDICDHNDTLQEDMRETadnb12dnmoaG/ExPAFhboqan99fX02trgjIzEJibz0NDz1NTJNzfcf3/ZcXHuvr7MQUHuv7/EJSX9+Pj67e3SWFj//v6/EhLehob++/vwy8v88/Ppra3HMTHCHx/uwMDilJTWZ2f99/f12tq8BgbSWVnFKirY+jP4AAAAAWJLR0QN9rRh9QAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3Izr/obEAAACmSURBVCjPY2AYhIARvzQTMwteeVY2dg5OfAq4uHl4+XBJ8gsIMgqx8QqLiIqJS2BTIMnLKyUtIyvHwSbPrqCIRYESrzKviqqaugavjKaWNhYFOrp6+gaGRsYmpmbmFlgdYWllbWNrYmfvYIjTE45Ozi6uMmxuuOTdPXg1Pb14Nb19cCjw9fMPCAziFeYNxi5vEcKrF8rKEBYegTMwLSJBZFQ0w7ADACDyErqWmAEaAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_id]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYAQMAAAChnW13AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEXnABH///9GPYQdAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3KkMjGRUAAAAQSURBVAjXY2CgAPwHAjIJAJsjL9Ejwc0pAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_th]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYBAMAAABpfeIHAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEWlGTHq2d/09fhGQ18tKkrb2+L///+mSNUGAAAAAWJLR0QGYWa4fQAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3LkRO3QwAAAAkSURBVBjTY2CgAhBEAwxKaIAIAWM0wOCCBugkEIoGyPELFQAAxhk0Eaz+gbcAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=site_DS]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAYBQTFRF+YqH/+XMlC4zbAMG/sSr2oN9/Hh58E1V1E1So4CX2dvn6ez3Zlqg/8uz/OrX+WVn49Xc2ur9/tvFuJag6+Tp/tO86Pf/ulZW5pWK2cPJnj1C9pyU/bql9t3Z2H13p0VIu2Zm06Sjy2lmpVZb9ePh9t3L/bSjwoeH/FtguXl82ouD/v/+qFxi5sjG3Z6YmU9W5qaZ+m1w/r+p+JKN2WVn+6mc1ztEzZaXwXFusjY9tEVL5by46mVo8f7/9LOg5Kqj6J2R7Hl327O128rP//Pa+qSYx3l049zk/cSyqmFl1ef9+r6x/K2fzDA62tPc3ef21ZeM9byq1a6w3uLt6bmo9q2cyq22yqOox46QpU5R88y+//v26omF9dbFilZz/LWo/NbO/fDs9MOw/M/B/8+3hh8l/9bC/8S9fhMZ/t/I8q+h+aCW2OX538/V/8ev8KeX1d7wsk9P/vTw8NbR0bzC9LWpvF9e+bylyZ6gznFs+YB/opfB1FxepWBvr2xu8vT5Ltt4cwAAA3xJREFUeNo0kflb2loQhseTEKgQwr6EyCprXJpQEFAUUUERceG2Ba1aldAAEo22aUnR+6/fg+39fjjPec68M9/MHDD/levtsP2528Y2l8tVt9XHNuDL5kajYf/ess+3XIXXsmf+2PMphqI/SaUSSnYR/OuxNxr3xx1/uz6/jJJlj3Pe419FNZpWfhZOCl0wm+32xuM4vNOut5Nsp+xZ8pd3ulKhp5CkIZOsAY7b79uRcN02vxPKJMsu6XO5tYS0niKSPi1YgWMMtOvdZN3WTmub6fKYSPP1GKvSJCmKXq0C9zPgF6rijtmHzBL/SYrxY7YUohWSEytRAzQw0FJVv82VVt3hAz69ilzPSGWHMw/OUIDHR7s9Ha0t2/yo0oum+dgrWrthQ7KsPtCi6KuA0+lMo6m2bitoihLt8Og1xt6GSpJEyD6FHA5xhVZoEtU6EfZBJCdni3I4KQe9vsz6GiF9VEQMmJ0sOVn5uhRVOCV6VkWdDiqZ+s/rfIRQFfIUHv3IR2o/VkocSSqTavrl3Yu3+GHhaeGJPyAe6FOox1TlISp6fXhwOvj5wGK52i5uW58jNxcLskbfQlL6SPoMmQmemuz50jGLJUaZtq0HxPLTRVLaPAWppoiG4IQTOY7r/YOuLJYSxQhfu8Svp5tFZAhCiOPEYHTYo2mSc59LFovFRAnMtw6RvFh4Dgcz4Es0E4bNwWGmVqEdA/XlStoQmFR2WTpb7JytaQYIBHLNL5mYRBDIPRi8R0SRYpgUAysL4SrPb5UgABCSCSx0Mhg47koyzICUkdpWlxerwS8QD5QIQkbhyv7cHAYO1aIgCKl8/ujINC1N4QecQ57w+hS3uz/AuvvWlE0UY5oBxnxehw9AUdNpMyEqPQd2cLgPr4sb+gZjzB8ZjUeMTm2DIFA67F0rbsesgpuuFHEOZcwbU0YjowOAQG2Y9L0EOQPmBv1+ODTSKQq3iSXo2SwIU5Oe/R/ABArlsjpeVYphBAovATamFGCAxsAc1q3sFfeyQOFRcHzUHIKgQzbQFGnHG7C7QrB0IjfKYvNZnngLOD5qcsrfArsxgnjfE6+vc6NR7lqk3ZcAgVyC2+/1B28F1uVX1B3c0fv74r4ys43DKHF415vlW63W3S1Z+v2OOLE63Hhxb6Zx2Do9v4zPtGi1rsks/u5VOWK9/PMWj5//J8AARTPMVw1SAkMAAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=site_MD]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgEAYAAAAj6qa3AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABmJLR0QAAAAAAAD5Q7t/AAAACXBIWXMAAABAAAAAQABiQ2NbAAAAB3RJTUUH5wENFwg5hirHAgAACb1JREFUaN7dWX1UlFUa/933HeZLYYDBmAEEAmFQQD5GUQMRMRUQT/ElnF3F1lPpqnhs/Yrj4tKmtbW2m1pHay3jaGWR5iK6faibYmbY6GBpKAmKxYcCDgzzPe97949ZmIImQND27O+fOed9n/s89/e7zzz3ufclGGGEhKjVarVMJvjakm33nz8fH9JuQmfNgjeSsHTiRJKPD6kwKAgzoSfvenv3DmxFEn2pvZ0eogqcunEDduJDbl+8SP5E19Cpx4/bPpMQwWOVlfX1Go1G09k5UvMlw3UQtj7ySJx+/HiiwybqvmEDsSOPHsjPx+fYS54Vi0dM2cdpKf3QZKJKcp6seu89nCK5bNMLL1x9/Ru1RlNbe98EUKvVarVaKu2OMZ3mQrdsoY+hgb62ciV5guSRmQLBiBEeAPQftJz+224nzWQVObFjh+FL9z3ihI0bv//b2bFnx5pMIy6Aakm0PlqvUmEun8UGHzyITWjG2AkTBjs+MTEkJCAAmDcvLEyhAIKDpVKBACgsrKiorgbsdo7j+WEokotQJFRXo9nuQy5lZV1588qbFz5vahq2ABER0dHx8Wo1lfFPcsc++gg67CKpPj6u7GUyiUQkAkpKUlJiYoDUVJHIYAAkEr2+owOwWmfMyMoCLBZf38BAICFh6dKnnx4G8b6wYBUam5r4ydQbHfPm1ZVfztNCq3Vlzrh60bPiAxFnGEIIAZ55Zs4ctRo4cyY52dcXyMzU669eBcRihmEYwGBYvfrllwGL5eGH8/OBc+fOn6+pGUHiPRBhOwL9/BgTgLTKStUS1ZK4RD+/QQsQjGCkQCyGlmtjLr7/viviwcFyuUwGVFVlZ8fFAfn5RuO1awDLGgxdXQClo0fLZIDR+PjjpaUAz8vlCgVASHd3Zyfw1lsff3zy5D0QoAd1pBQt/v50C5vOr6uo6KldAwogem/Uw7oDzz0HA8kkKyZO7Pt++vTQ0IAAoLJyyhS5HJDLW1vr6/vHt1jS0hYuBHje0/PH8rHszZt1dUBNTWNjS8s9FOC/ICmklJSq1d2NpnPc/uJilwL0prySbqepRUV9DRMTHcR37Ro3jmUBgaCrq6Ojf0BKRSKJBLBa4+JmzOj/nmEcteCVVzIzExKApCSH33sNepwIseyppyKMEUa1WqnsJwB9hv+K3b9hQ9/tzN/f09PdHdi5c/x4qdSR4r/UhnBcYKBKBQBubiKR87lAcPlydTUgFJ4+ffgwkJzc0VFbC+ze7ednMABVVTk58fFARkZkZEjIyAtA8qBC+6hRvJhZaZ+9aVPv87WL1i4qxQMPHNt68ugnc69fNyUbFcZWiaTH4MSJ3NzJkwE/v5aWurqBA9lsavXMmYDZnJZWWAhIpfv3v/QSwLLXrn3zzWCmyjAsC3z5pbd3WBjwxBOHD587B1itHMdxwxeC/pl+gBtGI/mY+6spS6Egb5zf8/eyR7dvz1CmFczZWVRUUVFZefQoIJHU1Wm1wKJFnZ1ffz34ADyvUAQGAoQ4iiEher1Od/cTbm5WKMLCgPT0igqtFjCbrVabbQSE8CNm+n1BAeP3gzJXeWrOHKlUKpVKgYKCBQtyc4GcnJycrKyhO2aYlpbGxuET74Gvr8l05w6wdu2aNatXD99fLxJpIflDairja3/gqzHv9y9DdntoaHQ0QKm7u6fnCAYeIuz22NikJCAjIz09LQ0QiUSiH9eWuwWJhwCBMTHMGNsYm0+H8z/vhJubUAhYLCkp2dn3nzilYrFUClgsM2ZkZwMCgUAgEABRUZGRg2/AfwGVNBx/CglhJKmSVEkq47IjtFoTE+fPBzjuwQcjI+8FVUcn2dDg6xsWBhw4IJGEhAB793p4REUB333X2tre7rTOzJw3Lz19BMLWkkP4nYcHQ4hjAq7haGWNxsWLi4sBjvPzG8ltilKhUCwGGhpsNpYF/P0nTXroIYBhIiJiY4Fvv62tvXLFaT937uzZs2YBKpVKFR4+jLgncRldNhu7Ur5SXuRbUiKeJJ4kinedCT37ut0eH5+SAjCMo8qzbFPTz3WCg4dU6u4OKJWZmQUFgFyenJyeDqhU4eHh4UB4eHh4WNhPl4NhgKlT4+Pj4wGt9osvNBqgrU2vH8o1CaG4TpfcvMkunLBwwqKEdeu8U71TvROFwoGHsqxAANjtEyYkJAA2W3T0tGk/ckzMZqPR8WswONaYUmeHyPNBQSoVYLVOn/7II4DZvGDBqlUAx/n7h4YOnoBcXl/f2QkkJorFSiXw9ttabVXVEDKgjJ4he2trBe2/v/PWnbPXr48DngWiooa6fjyvUAQFAWZzVtayZT8JQXkeoNRisVgAs5lSADCZzGazGeA4u53jALHYarXbge7ujo6WFkcbxDAAyzoaIjc3Nzc3N0Amk8k8PJze7fbgYLkcIKS29udK+IAZYCD/JLqzZ5nWttadt2YdOTJ0FwOGIAwDECIWSySARCKRSCSAt7eXl5eXk1B3d3e3wQAIhUKhUAhIpQ47lhUIWLanRAJms0M4Sh0ZxfNeXlIpUFFhszU2Dn12dCyvo8uPHxe0vXbrXy2Xtm2zFFtiLd+vXy8KEAWIAsiw7wr7guMcrWxnZ1dXV5fzuVKpVCoUA4+32Ww2m80hCCHArVu3b9++Dbz77v795eVDmQgmoVivF7xBIqzMqVO9RD+Z+OnSY2U1NVOqEl6c/Gj/Y/DdomfFXO02bW1tbe3tToI9K88wjgwSiUQiodCZQe3t7e0dHcCTTy5fXlQENDc3Nw/lWE2fo3G0YuvWqzmX99UErlvXe+prWFEffyNpxYo4a6w1xlpV1ZOSw0Vf4jqdTtfZ6UxpLy/HX6KH6EDYtev113fvHjpx3AKLEKuV/4H9LX9p2zYA+4CfuRPcc7EsaZ/nkSOy7zzWuJdlZAxXgJ4MGEgYV+A4nud54MKFCxe0WuDgwUOHKipc+3UJOWJpZknJlTOX3q7ZvHlz7zz62qUgBSkQCJoP3t6i23f6NIrxDrZOmTJcIX4t0M9oKS3VaNwzJX8RPDttmkaj0Wg0zvOkyzUoRQqmIjh41cnQjaLysjLxB4Tg2JgxvzahwcK8nP8jdG1tr0puXqEfLV5cEvxpzKnOhoa+dgMmIaXLPklBVBRAWfpq/6uy/10QjqzYsYOQXXM+g+urmCFvd5Tm5eXlCYWAj09z86hRvzZNJ9ralEqDgZDy8vJyq3Wwo+7iU5aXV309pQC/2P2xwkIA63Fo82YA48GNHn0fGe/BbJMJIFZsfPFFQHG0e9zzzwMYSlcw/I+jlK74TapnUBBgG83FJCTcP/5u3WxNdTUhr75zQnfjxv2L+3+G/wD+yPgppHtX2wAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMy0wMS0xM1QxOTowOToxMyswMDowMFel7gwAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjMtMDEtMTNUMTk6MDk6MTQrMDA6MDDjX2g+AAAAAElFTkSuQmCC)}");
+                xlinks_api.insert_styles(".xl-site-tag-icon[data-xl-site-tag-icon=lang_jp]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAUVBMVEX////89ffstsPjlaj77/LacYq+CTS8AC2/CjXacov78PP22+HGJUvGJkz23OLac4z99vjst8Tjlqnkl6nkmKrsuMW/CzbbdY3GJ0323ePadI1SYYEeAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkH80BkfYAAAB6SURBVCjPzZHJDoAgDEQRVBCVVXD5/w+VGIMQSrj6rvOaTlqE/kaHCcFdNe6HkQbYxOF8XujLKsD5mAejB4SBJkigH0sFpgpB0wxdCCYXbCHYXNhaK1yjpC9LIpkKO3AHvn75AR5bROM4K8+STw9/VZ4VUM4Yp9DfuAEcEgb8vRe9xgAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMy0wMS0xMlQwMTozMToyMiswMDowMJwMZyQAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjMtMDEtMTBUMDM6NTA6NTkrMDA6MDAFGLMuAAAAAElFTkSuQmCC)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_cn]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAclBMVEXuHCXxQB/xRx7vKSP4oBD4pA/uHyX0cRf0cBfwOCDuIiTuICTuHSXvJCTvKyP6vQvxSh381wfvKCPvLyL6tgz//wDwMiH1fhX4mxD6uwv6wgryUB3vIyT1dxbyURz+7wPvJyP2iRP4oQ/zXRrzWRv///96F0p+AAAAAWJLR0QlwwHJDwAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkN/i0OQwAAABvSURBVCjPY2AgATAy4ZRiZgaRLKxsuBSwc4ApTi5uHiyyvHx8/Px8fLxApoCgEBYFwiKiQMAvBmRyiQtjtUFCVFQCr/MlpaQkISxprPIysjw8sjIglpy8GF6TFPiEufHJKyqx4dXPoKzCMAoGMwAAo/cEXRjamKYAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_kr]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABoVBMVEX///+7u7vCwsLBwcG9vb3u7u4cHBySkpJ5eXl2dnYdHR3w8PBeXl5paWkwMDCHh4c3Nzf4+Pj29vaFhYU0NDRmZmaOjo6zs7MiIiJzc3NLS0tRUVF+fn56enpNTU1JSUmMjIxnZ2e2trbv7+8eHh4VFRWGhoYuLi75+fn9+PnpparYXGXPN0LPOEPYXWbqqa7++/tqamqxsbEXFxcbGxvNzc1/f3/Ozs733+HSQ07NLjrXWWL66+zY2NgYGBh8fHzPz8/09PSQkJBOTk739ffMOkdSUlKPj4/19fWkhKLrq6++vr56T3y0MUaWNVa3MUXZX2g0Rox7OGMCRp8AR6ADR55vOmjQPEcJTaNoOmzLLzvLLjtiO2+pP1kzbLMZRJQ3QIQXRJV9VYCOrdWjjaqUlJRPT099fX32+fwtZ7EyaK/69/lTU1PQ0NCAgIAxMTHh6fQya7Pm7fbX19czMzPT09MkJCSgoKD3+fyQr9Y1bbQKTqQ3b7SUstf5+/0nJyeRkZG0tLQhISGsrKxXV1d4eHhlZWX+/v5xcXG5ubm8vLzgoCRaAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAElAS4VndQAAAFISURBVCjPY2CgEmBkQhdhZkHmsbKxc6DKc7JzcSNxeXj5+AUEEXwhAWERUTEEX1xCUkpaBtkAWTl5BUUlGE9ZhV1VTV2DgUFTS1tHV0/fgIFBw9DImN2EFarA1IyP39icgcHC0goMrG0YGGzthEXsHWBGODo5Ay1wcbWCAmugGbJu7h5IdrIALfC0ggMvBgZBb4yw8IFI+vr5WwVgDaxAsHxQcEhoWDhWBRGRUVbRMSEgEItVQVxIfEIiWD4kCUOSCejI5BA4SAE6Ejl2PFLT0hkYMjJh8lnZDAwcOexCMPncvHx+Y1MGhgKoisIiBoZiO+ESs1KoAm4V9rJyUFBXVFZVV9fU1gEtMDSvb2CDBTVDY1Nzi3Q6spta03JYRJUQfB7efP4SISRHlQiLtKWiJhjJdmQT2jsaVJATDEMnSgIDga4uBioBAMJERI7yM7r7AAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_hk]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABFFBMVEW6AAC6AQHFKSntvLzrtLS+DQ345OT+/f355+e7AgLWZmb+/Pzwycn////DIiLGKyvBGxu/ERHfiYnyzs7HMjLfiorilZXUYGC8BwfadXXxzc3VZ2f45eXln5/TXFz77+/vw8O7AwPTXl7xy8vYbm7ruLjGLCzmpqbtvr767u756urMQ0O8CAjz09P99vb34uLwx8fDICDHNDTLQEDMRETadnb12dnmoaG/ExPAFhboqan99fX02trgjIzEJibz0NDz1NTJNzfcf3/ZcXHuvr7MQUHuv7/EJSX9+Pj67e3SWFj//v6/EhLehob++/vwy8v88/Ppra3HMTHCHx/uwMDilJTWZ2f99/f12tq8BgbSWVnFKirY+jP4AAAAAWJLR0QN9rRh9QAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3Izr/obEAAACmSURBVCjPY2AYhIARvzQTMwteeVY2dg5OfAq4uHl4+XBJ8gsIMgqx8QqLiIqJS2BTIMnLKyUtIyvHwSbPrqCIRYESrzKviqqaugavjKaWNhYFOrp6+gaGRsYmpmbmFlgdYWllbWNrYmfvYIjTE45Ozi6uMmxuuOTdPXg1Pb14Nb19cCjw9fMPCAziFeYNxi5vEcKrF8rKEBYegTMwLSJBZFQ0w7ADACDyErqWmAEaAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_id]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYAQMAAAChnW13AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEXnABH///9GPYQdAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3KkMjGRUAAAAQSURBVAjXY2CgAPwHAjIJAJsjL9Ejwc0pAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_th]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYBAMAAABpfeIHAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEWlGTHq2d/09fhGQ18tKkrb2+L///+mSNUGAAAAAWJLR0QGYWa4fQAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3LkRO3QwAAAAkSURBVBjTY2CgAhBEAwxKaIAIAWM0wOCCBugkEIoGyPELFQAAxhk0Eaz+gbcAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=site_DS]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAYBQTFRF+YqH/+XMlC4zbAMG/sSr2oN9/Hh58E1V1E1So4CX2dvn6ez3Zlqg/8uz/OrX+WVn49Xc2ur9/tvFuJag6+Tp/tO86Pf/ulZW5pWK2cPJnj1C9pyU/bql9t3Z2H13p0VIu2Zm06Sjy2lmpVZb9ePh9t3L/bSjwoeH/FtguXl82ouD/v/+qFxi5sjG3Z6YmU9W5qaZ+m1w/r+p+JKN2WVn+6mc1ztEzZaXwXFusjY9tEVL5by46mVo8f7/9LOg5Kqj6J2R7Hl327O128rP//Pa+qSYx3l049zk/cSyqmFl1ef9+r6x/K2fzDA62tPc3ef21ZeM9byq1a6w3uLt6bmo9q2cyq22yqOox46QpU5R88y+//v26omF9dbFilZz/LWo/NbO/fDs9MOw/M/B/8+3hh8l/9bC/8S9fhMZ/t/I8q+h+aCW2OX538/V/8ev8KeX1d7wsk9P/vTw8NbR0bzC9LWpvF9e+bylyZ6gznFs+YB/opfB1FxepWBvr2xu8vT5Ltt4cwAAA3xJREFUeNo0kflb2loQhseTEKgQwr6EyCprXJpQEFAUUUERceG2Ba1aldAAEo22aUnR+6/fg+39fjjPec68M9/MHDD/levtsP2528Y2l8tVt9XHNuDL5kajYf/ess+3XIXXsmf+2PMphqI/SaUSSnYR/OuxNxr3xx1/uz6/jJJlj3Pe419FNZpWfhZOCl0wm+32xuM4vNOut5Nsp+xZ8pd3ulKhp5CkIZOsAY7b79uRcN02vxPKJMsu6XO5tYS0niKSPi1YgWMMtOvdZN3WTmub6fKYSPP1GKvSJCmKXq0C9zPgF6rijtmHzBL/SYrxY7YUohWSEytRAzQw0FJVv82VVt3hAz69ilzPSGWHMw/OUIDHR7s9Ha0t2/yo0oum+dgrWrthQ7KsPtCi6KuA0+lMo6m2bitoihLt8Og1xt6GSpJEyD6FHA5xhVZoEtU6EfZBJCdni3I4KQe9vsz6GiF9VEQMmJ0sOVn5uhRVOCV6VkWdDiqZ+s/rfIRQFfIUHv3IR2o/VkocSSqTavrl3Yu3+GHhaeGJPyAe6FOox1TlISp6fXhwOvj5wGK52i5uW58jNxcLskbfQlL6SPoMmQmemuz50jGLJUaZtq0HxPLTRVLaPAWppoiG4IQTOY7r/YOuLJYSxQhfu8Svp5tFZAhCiOPEYHTYo2mSc59LFovFRAnMtw6RvFh4Dgcz4Es0E4bNwWGmVqEdA/XlStoQmFR2WTpb7JytaQYIBHLNL5mYRBDIPRi8R0SRYpgUAysL4SrPb5UgABCSCSx0Mhg47koyzICUkdpWlxerwS8QD5QIQkbhyv7cHAYO1aIgCKl8/ujINC1N4QecQ57w+hS3uz/AuvvWlE0UY5oBxnxehw9AUdNpMyEqPQd2cLgPr4sb+gZjzB8ZjUeMTm2DIFA67F0rbsesgpuuFHEOZcwbU0YjowOAQG2Y9L0EOQPmBv1+ODTSKQq3iSXo2SwIU5Oe/R/ABArlsjpeVYphBAovATamFGCAxsAc1q3sFfeyQOFRcHzUHIKgQzbQFGnHG7C7QrB0IjfKYvNZnngLOD5qcsrfArsxgnjfE6+vc6NR7lqk3ZcAgVyC2+/1B28F1uVX1B3c0fv74r4ys43DKHF415vlW63W3S1Z+v2OOLE63Hhxb6Zx2Do9v4zPtGi1rsks/u5VOWK9/PMWj5//J8AARTPMVw1SAkMAAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=site_MD]{background-image:url(data:image/png;base64,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)}.xl-site-tag-icon[data-xl-site-tag-icon=site_CK]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAsTAAALEwEAmpwYAAAGMWlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgOS4xLWMwMDIgNzkuYTFjZDEyZiwgMjAyNC8xMS8xMS0xOTowODo0NiAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0RXZ0PSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VFdmVudCMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKFdpbmRvd3MpIiB4bXA6Q3JlYXRlRGF0ZT0iMjAyNS0wNS0yNVQxNDoxMzoyMiswMjowMCIgeG1wOk1vZGlmeURhdGU9IjIwMjUtMDUtMjVUMTQ6MTQ6MjMrMDI6MDAiIHhtcDpNZXRhZGF0YURhdGU9IjIwMjUtMDUtMjVUMTQ6MTQ6MjMrMDI6MDAiIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjllZWZlOTMwLWM0YjctMjM0OC1iOGFkLTVhOTY1Yzk0ZDBhNSIgeG1wTU06RG9jdW1lbnRJRD0iYWRvYmU6ZG9jaWQ6cGhvdG9zaG9wOjM1YjkwOWVmLWVhNjYtNjU0Ni04ZGZjLWM0YjViMDJiNTc1NCIgeG1wTU06T3JpZ2luYWxEb2N1bWVudElEPSJ4bXAuZGlkOmU4ZmY4M2NmLWY3YjAtNmU0MS04YTZlLTAwOWMxZGZhMmUzMCI+IDx4bXBNTTpIaXN0b3J5PiA8cmRmOlNlcT4gPHJkZjpsaSBzdEV2dDphY3Rpb249ImNyZWF0ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6ZThmZjgzY2YtZjdiMC02ZTQxLThhNmUtMDA5YzFkZmEyZTMwIiBzdEV2dDp3aGVuPSIyMDI1LTA1LTI1VDE0OjEzOjIyKzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgMjYuNCAoV2luZG93cykiLz4gPHJkZjpsaSBzdEV2dDphY3Rpb249ImNvbnZlcnRlZCIgc3RFdnQ6cGFyYW1ldGVycz0iZnJvbSBhcHBsaWNhdGlvbi92bmQuYWRvYmUucGhvdG9zaG9wIHRvIGltYWdlL3BuZyIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0ic2F2ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6OWVlZmU5MzAtYzRiNy0yMzQ4LWI4YWQtNWE5NjVjOTRkMGE1IiBzdEV2dDp3aGVuPSIyMDI1LTA1LTI1VDE0OjE0OjIzKzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgMjYuNCAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+jGxdIwAAHHlJREFUeNrdm3mYVNWd9z/nnLvU1tUr3dBAswjKjiCbyqoI4oZLNBEVY9xijDFqTIwLE2N0EuOaMWOiEzVOZhJjiEaDikpcEdwFF0BWAWloeqvu2u52zvtHdasoaDDD5H3fU899btVTt26d8/0t5/tbrjDG8OkhhGCfDwEomHrkZOyYjV/Mk7DiPL3o2QZp+JWJ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)}.xl-site-tag-icon[data-xl-site-tag-icon=site_BT]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC4AAAAuCAYAAABXuSs3AAAACXBIWXMAAAsTAAALEwEAmpwYAAAE7mlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgOS4xLWMwMDIgNzkuYTFjZDEyZiwgMjAyNC8xMS8xMS0xOTowODo0NiAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0RXZ0PSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VFdmVudCMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKFdpbmRvd3MpIiB4bXA6Q3JlYXRlRGF0ZT0iMjAyNS0wNS0yNVQxNDoyMzowNiswMjowMCIgeG1wOk1vZGlmeURhdGU9IjIwMjUtMDUtMjVUMTQ6MjM6NDkrMDI6MDAiIHhtcDpNZXRhZGF0YURhdGU9IjIwMjUtMDUtMjVUMTQ6MjM6NDkrMDI6MDAiIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjcwYWRjMWI3LTc2NTQtN2M0OS05ZTZmLWFmNjk2OTM2Y2RiYyIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDo3MGFkYzFiNy03NjU0LTdjNDktOWU2Zi1hZjY5NjkzNmNkYmMiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDo3MGFkYzFiNy03NjU0LTdjNDktOWU2Zi1hZjY5NjkzNmNkYmMiPiA8eG1wTU06SGlzdG9yeT4gPHJkZjpTZXE+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJjcmVhdGVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOjcwYWRjMWI3LTc2NTQtN2M0OS05ZTZmLWFmNjk2OTM2Y2RiYyIgc3RFdnQ6d2hlbj0iMjAyNS0wNS0yNVQxNDoyMzowNiswMjowMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKFdpbmRvd3MpIi8+IDwvcmRmOlNlcT4gPC94bXBNTTpIaXN0b3J5PiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PmIIA3sAAAGpSURBVGje7ZlBagIxFIbnCl6hV+gVvIJX6BU8QaGbLLoQ2oUgCC1UcCMIRVoQRBBEF0ILhSoIUrpo7aa0u9R/MDIMMzomM0l+6OK5NF/e5P3vf0kgpQwYI/zpzZeL4PxS2I6SuKpdDMcjxOfP77cuuHQc4rR+27x7enlmA99toHzTbr2uvz7YwMM4qTXq47f3FR24gk87+16DIyrtbocSHGcefIzgsvo46FOCQybzBj+m4RgVae7gWZoF/h/dUXcDzsCjG9CBL+SoHG2ONMDPug/3jBkvRA4zn3FImk624VuKaECFqgpsb5rZ8lbHAc1msgT8CZWt3dSB3Jdlb8E3hSjRqGgnIESSsWIxWeEwnaTh/37chjTGVcZmAxKGhdty4lWuJ7OpbttXa0Wl0ro7xOL49KYjnHVwlX3TEc4JOApNt0idguO4mK7nBHw7f3KB686dzsCRZcyOJnqea3HaakDxe0SKlq+SFL30pwGPXwqxgAs0LTrwpDty78GhJEmvEl5PQGnQPoOLQ0OzL+ChzkM5sj7WOnlZxjSjXpQRaQPxQXDat3zG+AMriEnVrkkkswAAAABJRU5ErkJggg==)}");
 
                 xlinks_api.register({
                     settings: {
                         sites: [ // namespace
-                            //name,      default, title,               description,                             descriptor?
-                            ["mangadex", true,    "mangadex.org",      "Enable link processing for mangadex.org"],
-                            ["dynasty",  true,    "dynasty-scans.com", "Enable link processing for dynasty-scans.com"],
+                            //name,       default, title,               description,                             descriptor?
+                            ["mangadex",  true,    "mangadex.org",      "Enable link processing for mangadex.org"],
+                            ["dynasty",   true,    "dynasty-scans.com", "Enable link processing for dynasty-scans.com"],
+                            ["comick.io", true,    "comick.io",         "Enable link processing for comick.io"],
+                            ["bato.to",   true,    "bato.to",           "Enable link processing for bato.to"],
                             // descriptor: { type: string, options: <array of [string:value, string:label, string:description, {type: ...}]> }
                             //  the {type: ...} is optional and can take the following values: "checkbox", "select", "textbox", "textarea", "button"
                             //      {type: "checkbox"}
@@ -2589,7 +3678,8 @@
                             ["custom_title", false, "Non-default series title language", "With the default title as fallback"],
                             ["title_search_order", "en, orig-ro, orig", "Series title search order",
                                 "orig = original language; -ro = romanized; e.g. ja, ja-ro, en, zh, zh-hk, ko, id, th, es, vi, de, ru, uk, fr, fa, pt, pt-br, tr, ...",
-                                {type: "textbox"}],
+                                {type: "textbox"}
+                            ],
                             // ["show_ch_lang", false, "Show chapter language", "Include the language a chapter was translated into"],
                             ["tag_filter", "", "Tag filter", "(https://mangadex.org/tag) List of English tag names separated by a comma; e.g. \"4-koma, genderswap, gore\"",
                                 {type: "textbox"}
@@ -2651,63 +3741,224 @@
                             ["tag_filter_style_custom", "", "Custom CSS for matched tag filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
                                 {type: "textbox"}
                             ],
-                        ]
+                        ],
+                        bato: [
+                            ["show_icon", true, "Show an icon instead of a [BT] tag", ""],
+                            ["show_orig_lang", true, "Show original language", "Include the original language of a series as a tag [ja], [ko], [zh], etc."],
+                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags in place of the [BT] tag or icon."],
+                            ["show_author", true, "Show author name", ""],
+                            ["show_ch_title", true, "Show chapter title", ""],
+                            // ["show_pages", true, "Show page count", ""],
+                            ["tag_filter", "", "Genre filter", "List of genres separated by a comma; e.g. \"Violence, Psychological\"",
+                                {type: "textbox"}
+                            ],
+                            ["tag_filter_style", "invert", "How to modify the icon on a genre filter match", "Only works if you show an icon instead of a [BT] tag",
+                                {
+                                    type: "select",
+                                    options: [
+                                        // [ value, label_text, description? ]
+                                        ["none",            "No change",        ""],
+                                        ["rotate180",       "Rotate 180°",      "transform: rotate(180deg)"],
+                                        ["long_strip",      "Long strip",       "transform: scaleX(0.5)"],
+                                        ["invert",          "Invert colors",    "filter: invert(1)"],
+                                        ["grayscale",       "Grayscale",        "filter: grayscale(1)"],
+                                        ["opacity50",       "Opacity 50%",      "filter: opacity(0.5)"],
+                                        ["drop_shadow",     "Drop shadow",      "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"],
+                                        ["sepia",           "Sepia",            "filter: sepia(1)"],
+                                        ["blur1.5",         "Blur",             "filter: blur(1.5px)"],
+                                        ["hue_rotate90",    "Hue rotate 90°",   "filter: hue-rotate(90deg)"],
+                                        ["hue_rotate180",   "Hue rotate 180°",  "filter: hue-rotate(180deg)"],
+                                        ["hue_rotate270",   "Hue rotate 270°",  "filter: hue-rotate(270deg)"],
+                                        ["custom",          "Custom CSS",       "<Your CSS here!>"],
+                                    ]
+                                }
+                            ],
+                            ["tag_filter_style_custom", "", "Custom CSS for matched genre filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
+                                {type: "textbox"}
+                            ],
+                        ],
+                        comick: [
+                            ["show_icon", true, "Show an icon instead of a [CK] tag", ""],
+                            ["show_orig_lang", true, "Show original language", "Include the original language of a series as a tag [ja], [ko], [zh], etc."],
+                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags in place of the [CK] tag or icon."],
+                            ["show_author", true, "Show author name", ""],
+                            ["show_artist", true, "Show artist name", "People that are both author and artist will only appear once."],
+                            ["show_volume", true, "Show volume number", ""],
+                            ["show_ch_title", true, "Show chapter title", ""],
+                            ["show_pages", true, "Show page count", ""],
+                            ["show_group", false, "Show group name", ""],
+                            ["custom_title", false, "Non-default series title language", "With the default title as fallback"],
+                            ["title_search_order", "en, orig", "Series title search order",
+                                "orig = original language; e.g. ja, en, zh, zh-hk, ko, id, th, es, vi, de, ru, uk, fr, fa, pt, pt-br, tr, ...",
+                                {type: "textbox"}
+                            ],
+                            ["tag_filter", "", "Genre & tag filter", "List of genres or tags separated by a comma; e.g. \"ninja, dumb female lead\"",
+                                {type: "textbox"}
+                            ],
+                            ["tag_filter_style", "invert", "How to modify the icon on a genre filter match", "Only works if you show an icon instead of a [CK] tag",
+                                {
+                                    type: "select",
+                                    options: [
+                                        // [ value, label_text, description? ]
+                                        ["none",            "No change",        ""],
+                                        ["rotate180",       "Rotate 180°",      "transform: rotate(180deg)"],
+                                        ["long_strip",      "Long strip",       "transform: scaleX(0.5)"],
+                                        ["invert",          "Invert colors",    "filter: invert(1)"],
+                                        ["grayscale",       "Grayscale",        "filter: grayscale(1)"],
+                                        ["opacity50",       "Opacity 50%",      "filter: opacity(0.5)"],
+                                        ["drop_shadow",     "Drop shadow",      "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"],
+                                        ["sepia",           "Sepia",            "filter: sepia(1)"],
+                                        ["blur1.5",         "Blur",             "filter: blur(1.5px)"],
+                                        ["hue_rotate90",    "Hue rotate 90°",   "filter: hue-rotate(90deg)"],
+                                        ["hue_rotate180",   "Hue rotate 180°",  "filter: hue-rotate(180deg)"],
+                                        ["hue_rotate270",   "Hue rotate 270°",  "filter: hue-rotate(270deg)"],
+                                        ["custom",          "Custom CSS",       "<Your CSS here!>"],
+                                    ]
+                                }
+                            ],
+                            ["tag_filter_style_custom", "", "Custom CSS for matched genre filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
+                                {type: "textbox"}
+                            ],
+                        ],
                     },
-                    request_apis: [{
-                        group: "mangadex",
-                        namespace: "mangadex",
-                        type: "generic",
-                        count: 1,
-                        concurrent: 1,
-                        delay_okay: 220,
-                        delay_error: 5000,
-                        functions: {
-                            // get_data: md_get_data,
-                            // set_data: md_set_data,
-                            setup_xhr: md_generic_api_xhr,
-                            parse_response: md_generic_parse_response
+                    request_apis: [
+                        {
+                            group: "mangadex",
+                            namespace: "mangadex",
+                            type: "generic",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 220,
+                            delay_error: 5000,
+                            functions: {
+                                // get_data: md_get_data,
+                                // set_data: md_set_data,
+                                setup_xhr: md_generic_api_xhr,
+                                parse_response: md_generic_parse_response
+                            },
                         },
-                    },
-                    {
-                        group: "dynasty",
-                        namespace: "dynasty",
-                        type: "chapter",
-                        count: 1,
-                        concurrent: 1,
-                        delay_okay: 100,
-                        delay_error: 5000,
-                        functions: {
-                            setup_xhr: ds_chapter_setup_xhr,
-                            parse_response: ds_chapter_parse_response
+                        {
+                            group: "dynasty",
+                            namespace: "dynasty",
+                            type: "chapter",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 100,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: ds_chapter_setup_xhr,
+                                parse_response: ds_chapter_parse_response
+                            },
                         },
-                    }],
-                    linkifiers: [{
+                        {
+                            group: "bato",
+                            namespace: "bato",
+                            type: "chapter",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 100,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: bt_chapter_setup_xhr,
+                                parse_response: bt_generic_parse_response
+                            },
+                        },
+                        {
+                            group: "bato",
+                            namespace: "bato",
+                            type: "series",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 100,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: bt_series_setup_xhr,
+                                parse_response: bt_generic_parse_response
+                            },
+                        },
+                        {
+                            group: "comick",
+                            namespace: "comick",
+                            type: "chapter",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 200,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: ck_chapter_setup_xhr,
+                                parse_response: ck_chapter_parse_response
+                            },
+                        },
+                        {
+                            group: "comick",
+                            namespace: "comick",
+                            type: "series",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 200,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: ck_series_setup_xhr,
+                                parse_response: ck_series_parse_response
+                            },
+                        },
+                    ],
+                    linkifiers: [
+                        {
                         // mangadex.org can only be preceeded by "https://" or "www." or both or neither
                         // the link ends either with the ID, a "/", a "#" or "/5" (for page 5)
                         regex: /(https?:\/\/)?(www\.)?(?<=(www\.|\/\/|\s+|^))mangadex\.org\/chapter\/([a-z0-9\-]+)(\/|\/\d+|\/\d+)?#?/i,
                         prefix_group: 1,
                         prefix: "https://",
-                    },
-                    {
-                        regex: /(https?:\/*)?(?:www\.)?dynasty-scans.com\/chapters\/(?:[^\s]+)?/i,
-                        prefix_group: 1,
-                        prefix: "https://",
-                    }],
-                    commands: [{
-                        url_info: md_ch_url_get_info,
-                        to_data: md_ch_url_info_to_data,
-                        actions: md_create_actions,
-                        // details: create_details
-                    },
-                    {
-                        url_info: ds_ch_url_get_info,
-                        to_data: ds_ch_url_info_to_data,
-                        actions: ds_create_actions,
-                        // details: create_details
-                    }]
+                        },
+                        {
+                            regex: /(https?:\/*)?(?:www\.)?dynasty-scans.com\/chapters\/(?:[^\s]+)?/i,
+                            prefix_group: 1,
+                            prefix: "https://",
+                        },
+                        {
+                            // bato.to v2: https://bato.to/chapter/3362345
+                            // bato.to v3: https://bato.to/title/137465-destroy-it-all-and-love-me-in-hell/3362345-vol_5-ch_21.5
+                            regex: /(https?:\/*)?(?:www\.)?bato.to\/(chapter|title\/[^\/]+)\/\d+/i,
+                            prefix_group: 1,
+                            prefix: "https://",
+                        },
+                        {
+                            // https://comick.io/comic/a-ninja-and-an-assassin-living-together/2JbmNIIV-chapter-36-en
+                            regex: /(https?:\/*)?(?:www\.)?comick.io\/comic\/([^\/]+)\/([^\/\-]+)/i,
+                            prefix_group: 1,
+                            prefix: "https://",
+                        },
+                    ],
+                    commands: [
+                        {
+                            url_info: md_ch_url_get_info,
+                            to_data: md_ch_url_info_to_data,
+                            actions: md_create_actions,
+                            // details: create_details
+                        },
+                        {
+                            url_info: ds_ch_url_get_info,
+                            to_data: ds_ch_url_info_to_data,
+                            actions: ds_create_actions,
+                            // details: create_details
+                        },
+                        {
+                            url_info: bt_ch_url_get_info,
+                            to_data: bt_ch_url_info_to_data,
+                            actions: bt_create_actions,
+                            // details: create_details
+                        },
+                        {
+                            url_info: ck_ch_url_get_info,
+                            to_data: ck_ch_url_info_to_data,
+                            actions: ck_create_actions,
+                            // details: create_details
+                        },
+                    ]
                 });
             }
-        }._w(107));
+        }._w(122));
     }._w(67);
     main(xlinks_api);
 })();

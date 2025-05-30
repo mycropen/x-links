@@ -2,7 +2,8 @@ master
 
 1.6
 - mycropen
-  + added support for comick.io and bato.to chapter links
+  + Added support for comick.io and bato.to chapter links
+  + The details panes now show which tag, genre, theme, etc. tripped the tag filter
 
 1.5
 - mycropen
