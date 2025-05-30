@@ -58,6 +58,7 @@
             "ja": "lang_jp",
             "jp": "lang_jp",
             "ko": "lang_kr",
+            "cn": "lang_cn",
             "zh": "lang_cn",
             "zh-hk": "lang_hk",
             "id": "lang_id",
@@ -1180,30 +1181,6 @@
         };
 
 
-        // comick.io
-        // class ComickDataAggregator {
-
-        // }
-
-        // var ck_generic_setup_xhr = function (callback) {
-
-        // };
-        // var ck_generic_parse_response = function (xhr, callback) {
-
-        // };
-
-        // var ck_ch_url_get_info = function (url, callback) {
-
-        // };
-        // var ck_ch_url_info_to_data = function (url_info, callback) {
-
-        // };
-
-        // var ck_create_actions = function (data, info, callback, retry = false) {
-
-        // };
-
-
         // bato.to
         class BatoDataAggregator {
             constructor(final_callback) {
@@ -1686,6 +1663,557 @@
                 else last_descriptor = descriptor;
 
                 urls.push([descriptor, null, aggregator.data.series.genres[i]]);
+
+
+        // comick.io
+        class ComickDataAggregator {
+            constructor(final_callback) {
+                this.callback = final_callback;
+                this.context = null;
+                this.tag_filter_tripped = false;
+                this.data = {
+                    series: {
+                        slug: "",
+                        // the default title
+                        title: "",
+                        // other language titles
+                        // some have a "null" language in the API; we ignore those
+                        // {"ja": "忍者と殺し屋のふたりぐらし", "ru": "Жизнь ниндзя и убийцы", ...}
+                        titles: {},
+                        // "iso639_1"
+                        language: "",
+                        // {genre_group: [[genre_name, genre_slug], ...], ...}
+                        genres: {},
+                        // [[tag_name, tag_slug], ...]
+                        tags: [],
+                        // [[author_name, author_slug, is_artist, is_author], ...]
+                        authors: [],
+                    },
+                    chapter: {
+                        vol: "",    // e.g. "5"
+                        num: "",    // e.g. "21.5"
+                        title: "",  // e.g. "Extras: Volume 4 & Twitter Part 4"
+                        pages: 0,
+                        // [[group_name, group_slug], [group_name, group_slug], ...]
+                        groups: [],
+
+                    },
+                    final_title: "",
+                };
+            }
+
+            add_data(category, data) {
+                this.data[category] = data;
+                this.validate();
+            }
+
+            validate() {
+                if (this.data.series.title == "") return;
+                if (this.data.chapter.num == "") return;
+
+                // make a usable object out of the categories
+                var aggdata = {
+                    language: "",
+                    author: "",
+                    series: "",
+                    volume: "",
+                    chapter: "",
+                    chapter_title: "",
+                    pages: "",
+                    title: "",
+                    group: "",
+                };
+                var template = "";
+
+                // "${language} ${author} ${series} ${chapter_num} ${chapter_title} ${pages} ${group}"
+                if (xlinks_api.config.comick.show_orig_lang && !xlinks_api.config.comick.use_flags && this.data.series.language)
+                    template += "${language} ";
+                if (xlinks_api.config.comick.show_author && this.data.series.authors.length > 0)
+                    template += "${author} ";
+                if (this.data.series.title)
+                    template += "${series} ";
+                if (xlinks_api.config.comick.show_volume && this.data.chapter.vol)
+                    template += "${volume} ";
+                if (this.data.chapter.num)
+                    template += "${chapter} ";
+                if (xlinks_api.config.comick.show_ch_title && this.data.chapter.title)
+                    template += "${chapter_title} ";
+                if (xlinks_api.config.comick.show_pages && this.data.chapter.pages)
+                    template += "${pages} ";
+                if (xlinks_api.config.comick.show_group && data.chapter.groups.length > 0)
+                    template += "${group}";
+
+                if (this.data.series.authors.length > 0) {
+                    let author_names = [];
+                    for (let i = 0; i < this.data.series.authors.length; i++) {
+                        author_names.push(this.data.series.authors[i][0]);
+                    }
+                    aggdata.author = "[" + author_names.join(", ") + "]";
+                }
+
+                if (this.data.series.title) {
+                    // default title
+                    aggdata.series = this.data.series.title;
+
+                    if (xlinks_api.config.comick.custom_title) {
+                        let title_order = xlinks_api.config.comick.title_search_order.replace(/\s+/g, "").split(",");
+                        let title_found = false;
+
+                        for (var i = 0; i < title_order.length; i++) {
+                            if (title_found) break;
+                            let lcode = title_order[i].replace(/orig/i, this.data.series.language);
+                            console.log([this.data.series.title, lcode, this.data.series.titles[lcode]]);
+                            if (this.data.series.titles[lcode] !== undefined) {
+                                aggdata.series = this.data.series.titles[lcode];
+                                title_found = true;
+                            }
+                        }
+                    }
+
+                    this.data.final_title = aggdata.series;
+                }
+
+                if (this.data.chapter.vol)     aggdata.volume        = "vol. " + this.data.chapter.vol;
+                if (this.data.chapter.num)     aggdata.chapter       = "ch. " + this.data.chapter.num;
+                if (this.data.chapter.title)   aggdata.chapter_title = '- "' + this.data.chapter.title + '"';
+                if (this.data.series.language) aggdata.language      = '[' + this.data.series.language + ']';
+                if (this.data.chapter.pages)   aggdata.pages         = "(" + this.data.chapter.pages + "p)";
+
+                if (xlinks_api.config.comick.show_group && this.data.chapter.groups.length > 0) {
+                    let group_names = [];
+                    for (var i = 0; i < this.data.chapter.groups.length; i++) {
+                        group_names.push(this.data.chapter.groups[i][0]);
+                    }
+                    aggdata.group = "[" + group_names.join(", ") + "]";
+                }
+
+                aggdata.title = interpolate(template, aggdata);
+                aggdata.title = aggdata.title.replace(/^\s+/, "");
+                aggdata.title = aggdata.title.replace(/\s$/, "");
+                aggdata.title = aggdata.title.replace(/\s+/g, " ");
+
+                if (xlinks_api.config.comick.show_icon) {
+                    // modify the [MD] tag into an icon or flag
+                    // apply a style if the tag filter is tripped
+                    let icon_name = "site_CK";
+                    let apply_style = false;
+
+                    if (xlinks_api.config.comick.show_orig_lang && xlinks_api.config.comick.use_flags && lang_to_flag[this.data.series.language] !== undefined)
+                        icon_name = lang_to_flag[this.data.series.language]
+
+                    // search for tags matching the tag filter
+                    if (xlinks_api.config.comick.tag_filter.trim() !== "") {
+                        // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
+                        let tag_array = xlinks_api.config.comick.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+
+                        // check genres
+                        Object.keys(this.data.series.genres).forEach(key => {
+                            for (var i = 0; i < this.data.series.genres.length; i++) {
+                                if (tag_array.indexOf(this.data.series.genres[i][0].toLowercase() >= 0)) {
+                                    apply_style = true;
+                                    break;
+                                }
+                            }
+                        });
+
+                        // check tags
+                        if (!apply_style) {
+                            for (let i = 0; i < this.data.series.tags.length; i++) {
+                                if (tag_array.indexOf(this.data.series.tags[i][0].toLowerCase()) >= 0) {
+                                    apply_style = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    this.tag_filter_tripped = apply_style;
+                    replace_icon(this.context, "comick", icon_name, apply_style);
+                }
+
+                // For some reason I absolutely cannot grasp, calling the callback before the previous block
+                // will lead to this.tag_filter_tripped being unreadable with its final value. I suspect some
+                // sort of "optimization" that removes writes to fields if they're no longer read afterwards.
+                // console.log(["validate", this.context, this, aggdata]);
+                this.callback(null, aggdata);
+            }
+        }
+
+        var ck_aggregators = {};
+
+        var ck_get_data = function (key) {
+            var data = xlinks_api.cache_get("ck_" + key);
+            return data;
+        };
+        var ck_set_data = function (key, data, err_callback) {
+            var lifetime = 7 * xlinks_api.ttl_1_day;
+            xlinks_api.cache_set("ck_" + key, data, lifetime);
+            if (err_callback !== null) err_callback(null);
+        };
+
+        var ck_chapter_setup_xhr = function (callback) {
+            var info = this.infos[0];
+            var ctx = null;
+            if (info.context !== undefined) ctx = info.context;
+
+            callback(null, {
+                method: "GET",
+                url: "https://api.comick.fun/chapter/"+info.id+"/?tachiyomi=false",
+                headers: {"accept": "application/json"},
+                context: ctx,
+            });
+        };
+        var ck_chapter_parse_response = function (xhr, callback) {
+            if (xhr.status !== 200) {
+                callback("Invalid response");
+                return;
+            }
+
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            // console.log(["ck_chapter_parse_response", jsdata]);
+            if (jsdata == null) {
+                callback("Cannot parse response");
+                return;
+            }
+
+            var ch_data = {
+                vol: jsdata.chapter.vol || "",
+                num: jsdata.chapter.chap || "",
+                title: jsdata.chapter.title || "",
+                pages: 0,
+                // [[group_name, group_slug], [group_name, group_slug], ...]
+                groups: [],
+            };
+
+            if (jsdata.chapter.md_images) ch_data.pages = jsdata.chapter.md_images.length;
+
+            if (jsdata.chapter.md_chapters_groups) {
+                for (var i = 0; i < jsdata.chapter.md_chapters_groups.length; i++) {
+                    // "md_chapters_groups": [
+                    //   {
+                    //     "md_group_id": 35088,
+                    //     "md_groups": {
+                    //       "slug": "underpaid-civ-eng-scans",
+                    //       "title": "Underpaid CivEng Scans"
+                    //     }
+                    //   }
+                    // ]
+                    let group_data = jsdata.chapter.md_chapters_groups[i];
+                    ch_data.groups.push([group_data.md_groups.title, group_data.md_groups.slug]);
+                }
+            }
+
+            callback(null, [ch_data]);
+        };
+
+        var ck_series_setup_xhr = function (callback) {
+            var info = this.infos[0];
+            var ctx = null;
+            if (info.context !== undefined) ctx = info.context;
+
+            callback(null, {
+                method: "GET",
+                url: "https://api.comick.fun/comic/"+info.series_id+"/?tachiyomi=false",
+                headers: {"accept": "application/json"},
+                context: ctx,
+            });
+        };
+        var ck_series_parse_response = function (xhr, callback) {
+            const base_url = "https://comick.io";
+
+            if (xhr.status !== 200) {
+                callback("Invalid response");
+                return;
+            }
+
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            // console.log(["ck_series_parse_response", jsdata]);
+            if (jsdata == null) {
+                callback("Cannot parse response");
+                return;
+            }
+
+            var series_data = {
+                slug: jsdata.comic.slug || "",
+                // the default title
+                title: jsdata.comic.title || "",
+                // other language titles
+                // some have a "null" language in the API; we ignore those
+                // {"ja": "忍者と殺し屋のふたりぐらし", "ru": "Жизнь ниндзя и убийцы", ...}
+                titles: {},
+                // "iso639_1"
+                language: jsdata.comic.iso639_1 || jsdata.comic.country || "",
+                // {genre_group: [[genre_name, genre_slug], ...], ...}
+                genres: {},
+                // [[tag_name, tag_slug], ...]
+                tags: [],
+                // [[author_name, author_slug, is_artist, is_author], ...]
+                authors: [],
+            };
+
+
+            if (jsdata.comic.md_titles) {
+                for (var i = 0; i < jsdata.comic.md_titles.length; i++) {
+                    // "md_titles": [
+                    //   {
+                    //     "title": "アンドロイドは経験人数に入りますか？？",
+                    //     "lang": "ja"
+                    //   },
+                    //   ...
+                    // ]
+                    let title_data = jsdata.comic.md_titles[i];
+                    // ignore "null" languages
+                    if (title_data.lang && series_data.titles[title_data.lang] == undefined)
+                        series_data.titles[title_data.lang] = title_data.title;
+                }
+            }
+
+
+            if (jsdata.comic.md_comic_md_genres) {
+                for (var i = 0; i < jsdata.comic.md_comic_md_genres.length; i++) {
+                    // "md_comic_md_genres": [
+                    //   {
+                    //     "md_genres": {
+                    //       "name": "Ecchi",
+                    //       "type": "main",
+                    //       "slug": "ecchi",
+                    //       "group": "Content"
+                    //     }
+                    //   },
+                    //   ...
+                    // ]
+                    let genre_data = jsdata.comic.md_comic_md_genres[i].md_genres;
+                    if (series_data.genres[genre_data.group] == undefined) series_data.genres[genre_data.group] = [];
+                    series_data.genres[genre_data.group].push([genre_data.name, genre_data.slug]);
+                }
+            }
+
+
+            if (jsdata.comic.mu_comics && jsdata.comic.mu_comics.mu_comic_categories) {
+                for (var i = 0; i < jsdata.comic.mu_comics.mu_comic_categories.length; i++) {
+                    // "mu_comic_categories": [
+                    //   {
+                    //     "mu_categories": {
+                    //       "title": "Android/s",
+                    //       "slug": "android-s"
+                    //     },
+                    //     "positive_vote": 5,
+                    //     "negative_vote": 0
+                    //   },
+                    //   ...
+                    // ]
+                    let tag_data = jsdata.comic.mu_comics.mu_comic_categories[i].mu_categories;
+                    series_data.tags.push([tag_data.title, tag_data.slug]);
+                }
+            }
+
+
+            // {slug: [name, is_artist, is_author]}
+            let author_data = {};
+
+            if (jsdata.artists) {
+                for (var i = 0; i < jsdata.artists.length; i++) {
+                    // "artists": [
+                    //   {
+                    //     "name": "Yakiniku Teishoku",
+                    //     "slug": "yakiniku-teishoku"
+                    //   }
+                    // ]
+                    author_data[jsdata.artists[i].slug] = [jsdata.artists[i].name, true, false];
+                }
+            }
+
+            if (jsdata.authors) {
+                for (var i = 0; i < jsdata.authors.length; i++) {
+                    // "authors": [
+                    //   {
+                    //     "name": "Yakiniku Teishoku",
+                    //     "slug": "yakiniku-teishoku"
+                    //   }
+                    // ]
+                    if (author_data[jsdata.authors[i].slug] == undefined)
+                        author_data[jsdata.authors[i].slug] = [jsdata.authors[i].name, false, true];
+                    else
+                        author_data[jsdata.authors[i].slug][2] = true;
+                }
+            }
+
+            Object.keys(author_data).forEach(key => {
+                series_data.authors.push([author_data[key][0], key, author_data[key][1], author_data[key][2]]);
+            });
+
+
+            // console.log(["ck_series_parse_response", "series_data", series_data]);
+            callback(null, [series_data]);
+        };
+
+        var ck_ch_url_get_info = function (url, callback) {
+            let series_id, chapter_id;
+
+            let m = /(https?:\/*)?(?:www\.)?comick.io\/comic\/([^\/]+)\/([^\/\-]+)/i.exec(url);
+
+            if (m !== null) {
+                var url_info = {
+                    series_id: m[2],
+                    id: m[3],
+                    site: "comick",
+                    type: "chapter",
+                    tag: "CK",
+                    context: "chapter_"+m[3],
+                };
+
+                // comick.io has a "country" field we can use for country flags
+                if (xlinks_api.config.comick.show_icon)
+                    url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
+
+                callback(null, url_info);
+            } else {
+                callback(null, null);
+            }
+        };
+        var ck_ch_url_info_to_data = function (url_info, callback) {
+            var aggregator = new ComickDataAggregator(callback);
+            aggregator.context = url_info.id;
+            ck_aggregators[url_info.id] = aggregator;
+
+            var chapterdata = ck_get_data("chapter_"+url_info.id);
+            var seriesdata = ck_get_data("series_"+url_info.series_id);
+
+            // console.log(["ck_ch_url_info_to_data", url_info.series_id, url_info.id, chapterdata, seriesdata]);
+
+            if (chapterdata !== null) {
+                aggregator.add_data("chapter", chapterdata);
+            } else {
+                xlinks_api.request("comick", "chapter", url_info.id, url_info,
+                    (err, data) => {
+                        if (err !== null) return;
+                        ck_set_data("chapter_"+url_info.id, data, (err) => {});
+                        aggregator.add_data("chapter", data);
+                    }
+                );
+            }
+
+            if (seriesdata !== null) {
+                aggregator.add_data("series", seriesdata);
+            } else {
+                xlinks_api.request("comick", "series", url_info.series_id, url_info,
+                    (err, data) => {
+                        if (err !== null) return;
+                        ck_set_data("series_"+url_info.series_id, data, (err) => {});
+                        aggregator.add_data("series", data);
+                    }
+                );
+            }
+        };
+
+        var ck_create_actions = function (data, info, callback) {
+            let aggregator = ck_aggregators[info.id];
+
+            // do nothing if the aggregator doesn't have all the data yet
+            if (aggregator.data.final_title == undefined) return;
+
+            const base_url_series = "https://comick.io/comic/";
+            const base_url_group  = "https://comick.io/group/";
+            const base_url_author = "https://comick.io/people/";
+            const base_url_genre  = "https://comick.io/search?genres=";
+            const base_url_tag    = "https://comick.io/search?tags=";
+            const tag_marker_Y    = " [X]";
+            const tag_marker_N    = "";
+
+            // [[author_name, author_slug], ...]
+            let artists_authors = [];
+            let authors = [];
+            let artists = [];
+
+            for (var i = 0; i < aggregator.data.series.authors.length; i++) {
+                let [author_name, author_slug, is_artist, is_author] = aggregator.data.series.authors[i];
+
+                if (is_artist && is_author) artists_authors.push([author_name, author_slug]);
+                else if (is_artist)         artists.push([author_name, author_slug]);
+                else if (is_author)         authors.push([author_name, author_slug]);
+            }
+
+
+
+            // array of [descriptor, url, link_text]
+            let urls = [];
+            let last_descriptor = "";
+            let descriptor = "";
+            let tag_array = xlinks_api.config.comick.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+            let tag_marker = "";
+
+
+            if (aggregator.data.final_title) {
+                descriptor = "Title:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                if (aggregator.data.series.slug)
+                    urls.push([descriptor, base_url_series+aggregator.data.series.slug, aggregator.data.final_title]);
+                else
+                    urls.push([descriptor, null, aggregator.data.final_title]);
+            }
+
+            for (var i = 0; i < aggregator.data.chapter.groups.length; i++) {
+                descriptor = "Group:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [group_name, group_slug] = aggregator.data.chapter.groups[i];
+                urls.push([descriptor, base_url_group+group_slug, group_name]);
+            }
+
+            for (var i = 0; i < artists_authors.length; i++) {
+                descriptor = "Artist & Author:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [author_name, author_slug] = artists_authors[i];
+                urls.push([descriptor, base_url_author+author_slug, author_name]);
+            }
+
+            for (var i = 0; i < artists.length; i++) {
+                descriptor = "Artist:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [author_name, author_slug] = artists[i];
+                urls.push([descriptor, base_url_author+author_slug, author_name]);
+            }
+
+            for (var i = 0; i < authors.length; i++) {
+                descriptor = "Author:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [author_name, author_slug] = authors[i];
+                urls.push([descriptor, base_url_author+author_slug, author_name]);
+            }
+
+            Object.keys(aggregator.data.series.genres).forEach(key => {
+                for (var i = 0; i < aggregator.data.series.genres[key].length; i++) {
+                    descriptor = key + ":";
+                    if (last_descriptor == descriptor) descriptor = "";
+                    else last_descriptor = descriptor;
+
+                    let [genre_name, genre_slug] = aggregator.data.series.genres[key][i];
+                    tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(genre_name.toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
+                    // console.log([genre_name, aggregator, aggregator.tag_filter_tripped, tag_array.indexOf(genre_name.toLowerCase()), tag_marker]);
+
+                    urls.push([descriptor+tag_marker, base_url_genre+genre_slug, genre_name]);
+                }
+            });
+
+            for (var i = 0; i < aggregator.data.series.tags.length; i++) {
+                descriptor = "Tag:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [tag_name, tag_slug] = aggregator.data.series.tags[i];
+                tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(tag_name.toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
+                // console.log([tag_name, aggregator, aggregator.tag_filter_tripped, tag_array.indexOf(tag_name.toLowerCase()), tag_marker]);
+
+                urls.push([descriptor+tag_marker, base_url_tag+tag_slug, tag_name]);
             }
 
             callback(null, urls);
@@ -1799,16 +2327,10 @@
                                 {type: "textbox"}
                             ],
                         ],
-                        // comick: [
-                        //     ["show_icon", true, "Show an icon instead of a [CK] tag", ""],
-                        //     ["show_author", true, "Show author name", ""],
-                        //     ["show_pages", true, "Show page count", ""],
-                        //     ["show_group", false, "Show group name", ""],
-                        // ],
                         bato: [
                             ["show_icon", true, "Show an icon instead of a [BT] tag", ""],
                             ["show_orig_lang", true, "Show original language", "Include the original language of a series as a tag [ja], [ko], [zh], etc."],
-                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags in place of the [MD] tag or icon."],
+                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags in place of the [BT] tag or icon."],
                             ["show_author", true, "Show author name", ""],
                             ["show_ch_title", true, "Show chapter title", ""],
                             // ["show_pages", true, "Show page count", ""],
@@ -1816,6 +2338,49 @@
                                 {type: "textbox"}
                             ],
                             ["tag_filter_style", "invert", "How to modify the icon on a genre filter match", "Only works if you show an icon instead of a [BT] tag",
+                                {
+                                    type: "select",
+                                    options: [
+                                        // [ value, label_text, description? ]
+                                        ["none",            "No change",        ""],
+                                        ["rotate180",       "Rotate 180°",      "transform: rotate(180deg)"],
+                                        ["long_strip",      "Long strip",       "transform: scaleX(0.5)"],
+                                        ["invert",          "Invert colors",    "filter: invert(1)"],
+                                        ["grayscale",       "Grayscale",        "filter: grayscale(1)"],
+                                        ["opacity50",       "Opacity 50%",      "filter: opacity(0.5)"],
+                                        ["drop_shadow",     "Drop shadow",      "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"],
+                                        ["sepia",           "Sepia",            "filter: sepia(1)"],
+                                        ["blur1.5",         "Blur",             "filter: blur(1.5px)"],
+                                        ["hue_rotate90",    "Hue rotate 90°",   "filter: hue-rotate(90deg)"],
+                                        ["hue_rotate180",   "Hue rotate 180°",  "filter: hue-rotate(180deg)"],
+                                        ["hue_rotate270",   "Hue rotate 270°",  "filter: hue-rotate(270deg)"],
+                                        ["custom",          "Custom CSS",       "<Your CSS here!>"],
+                                    ]
+                                }
+                            ],
+                            ["tag_filter_style_custom", "", "Custom CSS for matched genre filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
+                                {type: "textbox"}
+                            ],
+                        ],
+                        comick: [
+                            ["show_icon", true, "Show an icon instead of a [CK] tag", ""],
+                            ["show_orig_lang", true, "Show original language", "Include the original language of a series as a tag [ja], [ko], [zh], etc."],
+                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags in place of the [CK] tag or icon."],
+                            ["show_author", true, "Show author name", ""],
+                            ["show_artist", true, "Show artist name", "People that are both author and artist will only appear once."],
+                            ["show_volume", true, "Show volume number", ""],
+                            ["show_ch_title", true, "Show chapter title", ""],
+                            ["show_pages", true, "Show page count", ""],
+                            ["show_group", false, "Show group name", ""],
+                            ["custom_title", false, "Non-default series title language", "With the default title as fallback"],
+                            ["title_search_order", "en, orig", "Series title search order",
+                                "orig = original language; e.g. ja, en, zh, zh-hk, ko, id, th, es, vi, de, ru, uk, fr, fa, pt, pt-br, tr, ...",
+                                {type: "textbox"}
+                            ],
+                            ["tag_filter", "", "Genre & tag filter", "List of genres or tags separated by a comma; e.g. \"ninja, dumb female lead\"",
+                                {type: "textbox"}
+                            ],
+                            ["tag_filter_style", "invert", "How to modify the icon on a genre filter match", "Only works if you show an icon instead of a [CK] tag",
                                 {
                                     type: "select",
                                     options: [
@@ -1870,19 +2435,6 @@
                                 parse_response: ds_chapter_parse_response
                             },
                         },
-                        // {
-                        //     group: "comick",
-                        //     namespace: "comick",
-                        //     type: "generic",
-                        //     count: 1,
-                        //     concurrent: 1,
-                        //     delay_okay: 100,
-                        //     delay_error: 5000,
-                        //     functions: {
-                        //         setup_xhr: ck_generic_setup_xhr,
-                        //         parse_response: ck_generic_parse_response
-                        //     },
-                        // },
                         {
                             group: "bato",
                             namespace: "bato",
@@ -1909,6 +2461,32 @@
                                 parse_response: bt_generic_parse_response
                             },
                         },
+                        {
+                            group: "comick",
+                            namespace: "comick",
+                            type: "chapter",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 200,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: ck_chapter_setup_xhr,
+                                parse_response: ck_chapter_parse_response
+                            },
+                        },
+                        {
+                            group: "comick",
+                            namespace: "comick",
+                            type: "series",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 200,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: ck_series_setup_xhr,
+                                parse_response: ck_series_parse_response
+                            },
+                        },
                     ],
                     linkifiers: [
                         {
@@ -1923,16 +2501,16 @@
                             prefix_group: 1,
                             prefix: "https://",
                         },
-                        // {
-                        //     //https://comick.io/comic/([^\/]+)/([^\/]+)-chapter
-                        //     regex: /(https?:\/*)?(?:www\.)?comick.io\/comic\/([^\/]+)\/([^\/]+)-chapter/i,
-                        //     prefix_group: 1,
-                        //     prefix: "https://",
-                        // },
                         {
                             // bato.to v2: https://bato.to/chapter/3362345
                             // bato.to v3: https://bato.to/title/137465-destroy-it-all-and-love-me-in-hell/3362345-vol_5-ch_21.5
                             regex: /(https?:\/*)?(?:www\.)?bato.to\/(chapter|title\/[^\/]+)\/\d+/i,
+                            prefix_group: 1,
+                            prefix: "https://",
+                        },
+                        {
+                            // https://comick.io/comic/a-ninja-and-an-assassin-living-together/2JbmNIIV-chapter-36-en
+                            regex: /(https?:\/*)?(?:www\.)?comick.io\/comic\/([^\/]+)\/([^\/\-]+)/i,
                             prefix_group: 1,
                             prefix: "https://",
                         },
@@ -1950,16 +2528,16 @@
                             actions: ds_create_actions,
                             // details: create_details
                         },
-                        // {
-                        //     url_info: ck_ch_url_get_info,
-                        //     to_data: ck_ch_url_info_to_data,
-                        //     actions: ck_create_actions,
-                        //     // details: create_details
-                        // },
                         {
                             url_info: bt_ch_url_get_info,
                             to_data: bt_ch_url_info_to_data,
                             actions: bt_create_actions,
+                            // details: create_details
+                        },
+                        {
+                            url_info: ck_ch_url_get_info,
+                            to_data: ck_ch_url_info_to_data,
+                            actions: ck_create_actions,
                             // details: create_details
                         },
                     ]
