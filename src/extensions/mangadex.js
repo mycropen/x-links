@@ -98,7 +98,7 @@
             }
             // console.log([ch_id, apply_style, xlinks_api.config[site].tag_filter_style, style_str]);
 
-            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+site_short[site]+"-"+ch_id+"]");
+            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+CSS.escape(site_short[site])+"-"+CSS.escape(ch_id)+"]");
             for (let i = 0; i < nodes.length; i++) {
                 nodes[i].setAttribute("data-xl-site-tag-icon", icon_name);
 

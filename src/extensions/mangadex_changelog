@@ -1,5 +1,9 @@
 master
 
+1.6.4
+- mycropen
+  + Chapter urls with special characters should not break site or language icons anymore
+
 1.6.3
 - mycropen
   + Fixed Mangadex and Comick links breaking with "show group name" or "non-default series title" options enabled

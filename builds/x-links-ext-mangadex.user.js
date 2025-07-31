@@ -2,7 +2,7 @@
 // @name        X-links Extension - Mangadex
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.6.3
+// @version     1.6.4
 // @description Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
@@ -1294,7 +1294,7 @@
             }
             // console.log([ch_id, apply_style, xlinks_api.config[site].tag_filter_style, style_str]);
 
-            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+site_short[site]+"-"+ch_id+"]");
+            nodes = $$("span.xl-site-tag-icon[data-xl-site-tag-icon=replaceme-"+CSS.escape(site_short[site])+"-"+CSS.escape(ch_id)+"]");
             for (let i = 0; i < nodes.length; i++) {
                 nodes[i].setAttribute("data-xl-site-tag-icon", icon_name);
 
@@ -3475,7 +3475,7 @@
             name: "Mangadex & Dynasty links",
             author: "mycropen",
             description: "Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to",
-            version: [1,6,3],
+            version: [1,6,4],
             registrations: 1,
             main: main_fn
         }, function (err) {
