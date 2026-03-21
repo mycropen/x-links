@@ -3008,7 +3008,7 @@
             } else {
                 callback(null, null);
             }
-        }._w(110);
+        };
         var bt_ch_url_info_to_data = function (url_info, callback) {
             var aggregator = new BatoDataAggregator(callback);
             aggregator.context = url_info.id;
@@ -3050,7 +3050,7 @@
                     }
                 );
             }
-        }._w(111);
+        };
 
         var bt_create_actions = function (data, info, callback, retry = false) {
             const tag_marker_Y = " [X]";
@@ -3098,7 +3098,7 @@
             }
 
             callback(null, urls);
-        }._w(112);
+        };
 
         
         // weebdex.org
@@ -3270,12 +3270,12 @@
         var wd_get_data = function (key) {
             var data = xlinks_api.cache_get("wd_" + key);
             return data;
-        }._w(113);
+        };
         var wd_set_data = function (key, data, err_callback) {
             var lifetime = 7 * xlinks_api.ttl_1_day;
             xlinks_api.cache_set("wd_" + key, data, lifetime);
             if (err_callback !== null) err_callback(null);
-        }._w(114);
+        };
 
         var wd_chapter_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -3288,7 +3288,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(115);
+        };
         var wd_chapter_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response");
@@ -3358,7 +3358,7 @@
             }
 
             callback(null, [ch_data]);
-        }._w(116);
+        };
 
         var wd_series_setup_xhr = function (callback) {
             var info = this.infos[0];
@@ -3371,7 +3371,7 @@
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
-        }._w(117);
+        };
         var wd_series_parse_response = function (xhr, callback) {
             const base_url = "https://weebdex.org";
 
@@ -3473,7 +3473,7 @@
 
             // console.log(["wd_series_parse_response", "series_data", series_data]);
             callback(null, [series_data]);
-        }._w(118);
+        };
 
         var wd_ch_url_get_info = function (url, callback) {
             let series_id, chapter_id;
@@ -3496,7 +3496,7 @@
             } else {
                 callback(null, null);
             }
-        }._w(119);
+        };
         var wd_ch_url_info_to_data = function (url_info, callback) {
             var aggregator = new WeebdexDataAggregator(callback);
             aggregator.context = url_info.id;
@@ -3533,7 +3533,7 @@
                     }
                 );
             }
-        }._w(120);
+        };
 
         var wd_create_actions = function (data, info, callback) {
             let aggregator = wd_aggregators[info.id];
@@ -3646,7 +3646,7 @@
             }
 
             callback(null, urls);
-        }._w(121);
+        };
 
 
 
@@ -3947,7 +3947,7 @@
                         {
                             // https://weebdex.org/chapter/w7fkuirmd9
                             // https://weebdex.org/chapter/w7fkuirmd9/1
-                            regex: /(https?:\/*)?(?:www\.)?weebdex\.org\/chapter\/([^\/]+)/i,
+                            regex: /(https?:\/*)?(?:www\.)?weebdex\.org\/chapter\/([^\/]+)\/?.*/i,
                             prefix_group: 1,
                             prefix: "https://",
                         },
@@ -3978,9 +3978,9 @@
                             // details: create_details
                         },
                     ]
-                });
+                }._w(110));
             }
-        }._w(122));
-    }._w(67);
+        });
+    };
     main(xlinks_api);
 })();
