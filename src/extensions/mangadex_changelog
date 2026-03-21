@@ -1,5 +1,8 @@
 master
 
+1.7.0
+- mycropen
+  + removed support for comick.io chapter links
 1.6.4
 - mycropen
   + Chapter urls with special characters should not break site or language icons anymore
