@@ -1861,6 +1861,50 @@
                                 {type: "textbox"}
                             ],
                         ],
+                        weebdex: [
+                            ["show_icon", true, "Show an icon instead of an [WD] tag", ""],
+                            ["show_orig_lang", true, "Show original language", "Include the original language of a series as a tag [ja], [ko], [zh], etc."],
+                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags in place of the [WD] tag or icon."],
+                            ["show_author", true, "Show author name", ""],
+                            ["show_artist", true, "Show artist name", "People that are both author and artist will only appear once."],
+                            ["show_volume", true, "Show volume number", ""],
+                            ["show_ch_title", true, "Show chapter title", ""],
+                            ["show_pages", true, "Show page count", ""],
+                            ["show_group", false, "Show group name", ""],
+                            ["custom_title", false, "Non-default series title language", "With the default title as fallback"],
+                            ["title_search_order", "en, orig-ro, orig", "Series title search order",
+                                "orig = original language; -ro = romanized; e.g. ja, ja-ro, en, zh, zh-hk, ko, id, th, es, vi, de, ru, uk, fr, fa, pt, pt-br, tr, ...",
+                                {type: "textbox"}
+                            ],
+                            // ["show_ch_lang", false, "Show chapter language", "Include the language a chapter was translated into"],
+                            ["tag_filter", "", "Tag filter", "List of English tag names (content, format, genre or theme) separated by a comma; e.g. \"loli, military, office workers\"",
+                                {type: "textbox"}
+                            ],
+                            ["tag_filter_style", "invert", "How to modify the icon on a tag filter match", "Only works if you show an icon or flag instead of an [WD] tag",
+                                {
+                                    type: "select",
+                                    options: [
+                                        // [ value, label_text, description? ]
+                                        ["none",            "No change",        ""],
+                                        ["rotate180",       "Rotate 180°",      "transform: rotate(180deg)"],
+                                        ["long_strip",      "Long strip",       "transform: scaleX(0.5)"],
+                                        ["invert",          "Invert colors",    "filter: invert(1)"],
+                                        ["grayscale",       "Grayscale",        "filter: grayscale(1)"],
+                                        ["opacity50",       "Opacity 50%",      "filter: opacity(0.5)"],
+                                        ["drop_shadow",     "Drop shadow",      "filter: drop-shadow(0.0rem 0.0rem 0.15rem #FF0000)"],
+                                        ["sepia",           "Sepia",            "filter: sepia(1)"],
+                                        ["blur1.5",         "Blur",             "filter: blur(1.5px)"],
+                                        ["hue_rotate90",    "Hue rotate 90°",   "filter: hue-rotate(90deg)"],
+                                        ["hue_rotate180",   "Hue rotate 180°",  "filter: hue-rotate(180deg)"],
+                                        ["hue_rotate270",   "Hue rotate 270°",  "filter: hue-rotate(270deg)"],
+                                        ["custom",          "Custom CSS",       "<Your CSS here!>"],
+                                    ]
+                                }
+                            ],
+                            ["tag_filter_style_custom", "", "Custom CSS for matched tag filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
+                                {type: "textbox"}
+                            ],
+                        ],
                     },
                     request_apis: [
                         {
@@ -1917,6 +1961,32 @@
                                 parse_response: bt_generic_parse_response
                             },
                         },
+                        {
+                            group: "weebdex",
+                            namespace: "weebdex",
+                            type: "chapter",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 200,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: wd_chapter_setup_xhr,
+                                parse_response: wd_chapter_parse_response
+                            },
+                        },
+                        {
+                            group: "weebdex",
+                            namespace: "weebdex",
+                            type: "series",
+                            count: 1,
+                            concurrent: 1,
+                            delay_okay: 200,
+                            delay_error: 5000,
+                            functions: {
+                                setup_xhr: wd_series_setup_xhr,
+                                parse_response: wd_series_parse_response
+                            },
+                        },
                     ],
                     linkifiers: [
                         // Note for the future: Make sure these regex patterns capture the whole url. Without 4chan-x or
@@ -1942,6 +2012,13 @@
                             prefix_group: 1,
                             prefix: "https://",
                         },
+                        {
+                            // https://weebdex.org/chapter/w7fkuirmd9
+                            // https://weebdex.org/chapter/w7fkuirmd9/1
+                            regex: /(https?:\/*)?(?:www\.)?weebdex\.org\/chapter\/([^\/]+)/i,
+                            prefix_group: 1,
+                            prefix: "https://",
+                        },
                     ],
                     commands: [
                         {
@@ -1960,6 +2037,12 @@
                             url_info: bt_ch_url_get_info,
                             to_data: bt_ch_url_info_to_data,
                             actions: bt_create_actions,
+                            // details: create_details
+                        },
+                        {
+                            url_info: wd_ch_url_get_info,
+                            to_data: wd_ch_url_info_to_data,
+                            actions: wd_create_actions,
                             // details: create_details
                         },
                     ]
