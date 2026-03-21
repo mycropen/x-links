@@ -1715,6 +1715,553 @@
             callback(null, urls);
         };
 
+        
+        // weebdex.org
+        class WeebdexDataAggregator {
+            constructor(final_callback) {
+                this.callback = final_callback;
+                this.context = null;
+                this.tag_filter_tripped = false;
+                this.data = {
+                    series: {
+                        id: "",
+                        // the default title
+                        title: "",
+                        // other language titles
+                        // some have a "null" language in the API; we ignore those
+                        // API returns an array of strings per language. These are only the first ones each.
+                        // {'en': 'Playing Death Games to Put Food on the Table', 'ja': '死亡遊戯で飯を食う。', ...}
+                        titles: {},
+                        // "iso639_1"
+                        language: "",
+                        // [[group, id, name], ...]
+                        // tag groups are: content, format, genre, theme
+                        tags: [],
+                        // [[author_name, author_id, is_artist, is_author], ...]
+                        authors: [],
+                    },
+                    chapter: {
+                        vol: "",    // e.g. "5"
+                        num: "",    // e.g. "21.5"
+                        title: "",  // e.g. "Extras: Volume 4 & Twitter Part 4"
+                        series_id: "",
+                        pages: 0,
+                        // [[group_name, group_id], [group_name, group_id], ...]
+                        groups: [],
+                    },
+                    final_title: "",
+                };
+            }
+
+            add_data(category, data) {
+                this.data[category] = data;
+                this.validate();
+            }
+
+            validate() {
+                if (this.data.series.title == "") return;
+                if (this.data.chapter.num == "") return;
+
+                // make a usable object out of the categories
+                var aggdata = {
+                    language: "",
+                    author: "",
+                    series: "",
+                    volume: "",
+                    chapter: "",
+                    chapter_title: "",
+                    pages: "",
+                    title: "",
+                    group: "",
+                };
+                var template = "";
+
+                // "${language} ${author} ${series} ${chapter_num} ${chapter_title} ${pages} ${group}"
+                if (xlinks_api.config.weebdex.show_orig_lang && !xlinks_api.config.weebdex.use_flags && this.data.series.language)
+                    template += "${language} ";
+                if (xlinks_api.config.weebdex.show_author && this.data.series.authors.length > 0)
+                    template += "${author} ";
+                if (this.data.series.title)
+                    template += "${series} ";
+                if (xlinks_api.config.weebdex.show_volume && this.data.chapter.vol)
+                    template += "${volume} ";
+                if (this.data.chapter.num)
+                    template += "${chapter} ";
+                if (xlinks_api.config.weebdex.show_ch_title && this.data.chapter.title)
+                    template += "${chapter_title} ";
+                if (xlinks_api.config.weebdex.show_pages && this.data.chapter.pages)
+                    template += "${pages} ";
+                if (xlinks_api.config.weebdex.show_group && this.data.chapter.groups.length > 0)
+                    template += "${group}";
+
+                if (this.data.series.authors.length > 0) {
+                    let author_names = [];
+                    for (let i = 0; i < this.data.series.authors.length; i++) {
+                        author_names.push(this.data.series.authors[i][0]);
+                    }
+                    aggdata.author = "[" + author_names.join(", ") + "]";
+                }
+
+                if (this.data.series.title) {
+                    // default title
+                    aggdata.series = this.data.series.title;
+
+                    if (xlinks_api.config.weebdex.custom_title) {
+                        let title_order = xlinks_api.config.weebdex.title_search_order.replace(/\s+/g, "").split(",");
+                        let title_found = false;
+
+                        for (var i = 0; i < title_order.length; i++) {
+                            if (title_found) break;
+                            let lcode = title_order[i].replace(/orig/i, this.data.series.language);
+                            // console.log([this.data.series.title, lcode, this.data.series.titles[lcode]]);
+                            if (this.data.series.titles[lcode] !== undefined) {
+                                aggdata.series = this.data.series.titles[lcode];
+                                title_found = true;
+                            }
+                        }
+                    }
+
+                    this.data.final_title = aggdata.series;
+                }
+
+                if (this.data.chapter.vol)     aggdata.volume        = "vol. " + this.data.chapter.vol;
+                if (this.data.chapter.num)     aggdata.chapter       = "ch. " + this.data.chapter.num;
+                if (this.data.chapter.title)   aggdata.chapter_title = '- "' + this.data.chapter.title + '"';
+                if (this.data.series.language) aggdata.language      = '[' + this.data.series.language + ']';
+                if (this.data.chapter.pages)   aggdata.pages         = "(" + this.data.chapter.pages + "p)";
+
+                if (xlinks_api.config.weebdex.show_group && this.data.chapter.groups.length > 0) {
+                    let group_names = [];
+                    for (var i = 0; i < this.data.chapter.groups.length; i++) {
+                        group_names.push(this.data.chapter.groups[i][0]);
+                    }
+                    aggdata.group = "[" + group_names.join(", ") + "]";
+                }
+
+                aggdata.title = interpolate(template, aggdata);
+                aggdata.title = aggdata.title.replace(/^\s+/, "");
+                aggdata.title = aggdata.title.replace(/\s$/, "");
+                aggdata.title = aggdata.title.replace(/\s+/g, " ");
+
+                if (xlinks_api.config.weebdex.show_icon) {
+                    // modify the [MD] tag into an icon or flag
+                    // apply a style if the tag filter is tripped
+                    let icon_name = "site_WD";
+                    let apply_style = false;
+
+                    if (xlinks_api.config.weebdex.show_orig_lang && xlinks_api.config.weebdex.use_flags && lang_to_flag[this.data.series.language] !== undefined)
+                        icon_name = lang_to_flag[this.data.series.language]
+
+                    // search for tags matching the tag filter
+                    if (xlinks_api.config.weebdex.tag_filter.trim() !== "") {
+                        // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
+                        let tag_array = xlinks_api.config.weebdex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+
+                        // check tags
+                        if (!apply_style) {
+                            for (let i = 0; i < this.data.series.tags.length; i++) {
+                                if (tag_array.indexOf(this.data.series.tags[i][2].toLowerCase()) >= 0) {
+                                    apply_style = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    this.tag_filter_tripped = apply_style;
+                    replace_icon(this.context, "weebdex", icon_name, apply_style);
+                }
+
+                // For some reason I absolutely cannot grasp, calling the callback before the previous block
+                // will lead to this.tag_filter_tripped being unreadable with its final value. I suspect some
+                // sort of "optimization" that removes writes to fields if they're no longer read afterwards.
+                // console.log(["validate", this.context, this, aggdata]);
+                this.callback(null, aggdata);
+            }
+        }
+
+        var wd_aggregators = {};
+
+        var wd_get_data = function (key) {
+            var data = xlinks_api.cache_get("wd_" + key);
+            return data;
+        };
+        var wd_set_data = function (key, data, err_callback) {
+            var lifetime = 7 * xlinks_api.ttl_1_day;
+            xlinks_api.cache_set("wd_" + key, data, lifetime);
+            if (err_callback !== null) err_callback(null);
+        };
+
+        var wd_chapter_setup_xhr = function (callback) {
+            var info = this.infos[0];
+            var ctx = null;
+            if (info.context !== undefined) ctx = info.context;
+
+            callback(null, {
+                method: "GET",
+                url: "https://api.weebdex.org/chapter/"+info.id,
+                headers: {"accept": "application/json"},
+                context: ctx,
+            });
+        };
+        var wd_chapter_parse_response = function (xhr, callback) {
+            if (xhr.status !== 200) {
+                callback("Invalid response");
+                return;
+            }
+
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            // console.log(["wd_chapter_parse_response", jsdata]);
+            if (jsdata == null) {
+                callback("Cannot parse response");
+                return;
+            }
+
+            var ch_data = {
+                vol: "",    // e.g. "5"
+                num: "",    // e.g. "21.5"
+                title: "",  // e.g. "Extras: Volume 4 & Twitter Part 4"
+                series_id: "",
+                pages: 0,
+                // [[group_name, group_id], [group_name, group_id], ...]
+                groups: [],
+            };
+
+            if (jsdata.chapter) ch_data.num = jsdata.chapter;
+            if (jsdata.volume) ch_data.vol = jsdata.volume;
+            if (jsdata.title) ch_data.title = jsdata.title;
+
+            if (jsdata.data) ch_data.pages = jsdata.data.length;
+            else if (jsdata.data_optimized) ch_data.pages = jsdata.data_optimized.length;
+
+            if (jsdata.relationships) {
+                if (jsdata.relationships.groups) {
+                    var all_groups = jsdata.relationships.groups;
+                    for (var i = 0; i < all_groups.length; i++) {
+                        // 'groups': [
+                        //     {'id': 'psbc8fgfbn', 'name': 'Hachi7'}
+                        // ]
+                        ch_data.groups.push([all_groups[i].name, all_groups[i].id]);
+                    }
+                }
+
+                if (jsdata.relationships.manga) {
+                    ch_data.series_id = jsdata.relationships.manga.id;
+
+                    var seriesdata = wd_get_data("series_"+ch_data.series_id);
+                    var aggregator = wd_aggregators[jsdata.id];
+
+                    if (seriesdata !== null) {
+                        aggregator.add_data("series", seriesdata);
+                    } else {
+                        var series_url_info = {
+                            id: ch_data.series_id,
+                            site: "weebdex",
+                            type: "series",
+                            tag: "WD",
+                            context: "chapter_" + jsdata.id,
+                        };
+                        xlinks_api.request("weebdex", "series", ch_data.series_id, series_url_info,
+                            (err, data) => {
+                                if (err !== null) return;
+                                wd_set_data("series_"+ch_data.series_id, data, (err) => {});
+                                aggregator.add_data("series", data);
+                            }
+                        );
+                    }
+                }
+            }
+
+            callback(null, [ch_data]);
+        };
+
+        var wd_series_setup_xhr = function (callback) {
+            var info = this.infos[0];
+            var ctx = null;
+            if (info.context !== undefined) ctx = info.context;
+
+            callback(null, {
+                method: "GET",
+                url: "https://api.weebdex.org/manga/"+info.id,
+                headers: {"accept": "application/json"},
+                context: ctx,
+            });
+        };
+        var wd_series_parse_response = function (xhr, callback) {
+            const base_url = "https://weebdex.org";
+
+            if (xhr.status !== 200) {
+                callback("Invalid response");
+                return;
+            }
+
+            var jsdata = xlinks_api.parse_json(xhr.responseText, null);
+            // console.log(["wd_series_parse_response", jsdata]);
+            if (jsdata == null) {
+                callback("Cannot parse response");
+                return;
+            }
+
+            var series_data = {
+                id: "",
+                // the default title
+                title: "",
+                // other language titles
+                // some have a "null" language in the API; we ignore those
+                // API returns an array of strings per language. These are only the first ones each.
+                // {'en': 'Playing Death Games to Put Food on the Table', 'ja': '死亡遊戯で飯を食う。', ...}
+                titles: {},
+                // "iso639_1"
+                language: "",
+                // [[group, id, name], ...]
+                // tag groups are: content, format, genre, theme
+                tags: [],
+                // [[author_name, author_id, is_artist, is_author], ...]
+                authors: [],
+            };
+
+            if (jsdata.id) series_data.id = jsdata.id;
+            if (jsdata.title) series_data.title = jsdata.title;
+            if (jsdata.language) series_data.language = jsdata.language;
+
+            if (jsdata.alt_titles) {
+                // 'alt_titles': {
+                //     'en': ['Playing Death Games to Put Food on the Table', 'The Phantom Girl in Games of Death.'],
+                //     'ja': ['死亡遊戯で飯を食う。'],
+                //     'ja-ro': ['Shibou Yuugi de Meshi o Kuu.', 'Shiboyugi'],
+                //     ...
+                // }
+                Object.keys(jsdata.alt_titles).forEach(
+                    t => {
+                        series_data.titles[t] = jsdata.alt_titles[t][0];
+                    }
+                );
+            }
+
+
+            if (jsdata.relationships) {
+                if (jsdata.relationships.tags) {
+                    // 'tags': [
+                    //     {'group': 'format', 'id': 'jnqtucy8q3', 'name': '4-Koma'},
+                    //     {'group': 'genre', 'id': 'onj03z2gnf', 'name': 'Comedy'},
+                    //     {'group': 'genre', 'id': 'i9w6sjikyd', 'name': "Girls' Love"},
+                    //     {'group': 'genre', 'id': '13x7xvq10k', 'name': 'Slice of Life'},
+                    //     {'group': 'theme', 'id': 'nnuhxonb31', 'name': 'Aliens'},
+                    //     {'group': 'theme', 'id': 'h5ioz14hix', 'name': 'Delinquents'},
+                    //     {'group': 'theme', 'id': 'hobsiukk71', 'name': 'School Life'}
+                    // ]
+                    for (var i = 0; i < jsdata.relationships.tags.length; i++) {
+                        let tag = jsdata.relationships.tags[i];
+                        series_data.tags.push([tag.group, tag.id, tag.name]);
+                    }
+                }
+
+                // {id: [name, is_artist, is_author]}
+                let author_data = {};
+
+                if (jsdata.relationships.artists) {
+                    for (var i = 0; i < jsdata.relationships.length; i++) {
+                        // 'artists': [
+                        //     {'group': 'author', 'id': 'qylfwcvnn1', 'name': 'Ouchi Kaeru (御家かえる)'}
+                        // ]
+                        author_data[jsdata.relationships.artists[i].id] = [jsdata.relationships.artists[i].name, true, false];
+                    }
+                }
+
+                if (jsdata.relationships.authors) {
+                    for (var i = 0; i < jsdata.relationships.authors.length; i++) {
+                        // 'authors': [
+                        //     {'group': 'author', 'id': 'qylfwcvnn1', 'name': 'Ouchi Kaeru (御家かえる)'}
+                        // ]
+                        if (author_data[jsdata.relationships.authors[i].id] == undefined)
+                            author_data[jsdata.relationships.authors[i].id] = [jsdata.relationships.authors[i].name, false, true];
+                        else
+                            author_data[jsdata.relationships.authors[i].id][2] = true;
+                    }
+                }
+
+                Object.keys(author_data).forEach(key => {
+                    series_data.authors.push([author_data[key][0], key, author_data[key][1], author_data[key][2]]);
+                });
+            }
+
+
+            // console.log(["wd_series_parse_response", "series_data", series_data]);
+            callback(null, [series_data]);
+        };
+
+        var wd_ch_url_get_info = function (url, callback) {
+            let series_id, chapter_id;
+
+            let m = /(https?:\/*)?(?:www\.)?weebdex\.org\/chapter\/([^\/]+)/i.exec(url);
+
+            if (m !== null) {
+                var url_info = {
+                    id: m[2],
+                    site: "weebdex",
+                    type: "chapter",
+                    tag: "WD",
+                    context: "chapter_"+m[2],
+                };
+
+                if (xlinks_api.config.weebdex.show_icon)
+                    url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
+
+                callback(null, url_info);
+            } else {
+                callback(null, null);
+            }
+        };
+        var wd_ch_url_info_to_data = function (url_info, callback) {
+            var aggregator = new WeebdexDataAggregator(callback);
+            aggregator.context = url_info.id;
+            wd_aggregators[url_info.id] = aggregator;
+
+            var chapterdata = wd_get_data("chapter_"+url_info.id);
+
+            // console.log(["wd_ch_url_info_to_data", url_info.id, chapterdata, seriesdata]);
+
+            if (chapterdata !== null) {
+                aggregator.add_data("chapter", chapterdata);
+
+                var series_id = chapterdata.series_id;
+                var seriesdata = wd_get_data("series_"+series_id);
+
+                if (seriesdata !== null) {
+                    aggregator.add_data("series", seriesdata);
+                } else {
+                    xlinks_api.request("weebdex", "series", series_id, url_info,
+                        (err, data) => {
+                            if (err !== null) return;
+                            wd_set_data("series_"+url_info.series_id, data, (err) => {});
+                            aggregator.add_data("series", data);
+                        }
+                    );
+                }
+
+            } else {
+                xlinks_api.request("weebdex", "chapter", url_info.id, url_info,
+                    (err, data) => {
+                        if (err !== null) return;
+                        wd_set_data("chapter_"+url_info.id, data, (err) => {});
+                        aggregator.add_data("chapter", data);
+                    }
+                );
+            }
+        };
+
+        var wd_create_actions = function (data, info, callback) {
+            let aggregator = wd_aggregators[info.id];
+
+            // do nothing if the aggregator doesn't have all the data yet
+            if (aggregator.data.final_title == undefined) return;
+
+            const base_url_series = "https://https://weebdex.org/title/";
+            const base_url_group  = "https://weebdex.org/group/";
+            const base_url_author = "https://weebdex.org/author/";
+            const base_url_tag    = "https://weebdex.org/search?tag=";
+            const tag_marker_Y    = " [X]";
+            const tag_marker_N    = "";
+
+            // [[author_name, author_id], ...]
+            let artists_authors = [];
+            let authors = [];
+            let artists = [];
+
+
+            for (var i = 0; i < aggregator.data.series.authors.length; i++) {
+                let [author_name, author_id, is_artist, is_author] = aggregator.data.series.authors[i];
+
+                if (is_artist && is_author) artists_authors.push([author_name, author_id]);
+                else if (is_artist)         artists.push([author_name, author_id]);
+                else if (is_author)         authors.push([author_name, author_id]);
+            }
+
+
+
+            // array of [descriptor, url, link_text]
+            let urls = [];
+            let last_descriptor = "";
+            let descriptor = "";
+            let tag_array = xlinks_api.config.weebdex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+            let tag_marker = "";
+            // {'format': [[tag_name, tag_id], ...], 'genre': [[tag_name, tag_id], ...], ...}
+            let tag_groups = {};
+
+
+            if (aggregator.data.final_title) {
+                descriptor = "Title:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                if (aggregator.data.series.id)
+                    urls.push([descriptor, base_url_series+aggregator.data.series.id, aggregator.data.final_title]);
+                else
+                    urls.push([descriptor, null, aggregator.data.final_title]);
+            }
+
+            for (var i = 0; i < aggregator.data.chapter.groups.length; i++) {
+                descriptor = "Group:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [group_name, group_id] = aggregator.data.chapter.groups[i];
+                urls.push([descriptor, base_url_group+group_id, group_name]);
+            }
+
+            for (var i = 0; i < artists_authors.length; i++) {
+                descriptor = "Artist & Author:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [author_name, author_id] = artists_authors[i];
+                urls.push([descriptor, base_url_author+author_id, author_name]);
+            }
+
+            for (var i = 0; i < artists.length; i++) {
+                descriptor = "Artist:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [author_name, author_id] = artists[i];
+                urls.push([descriptor, base_url_author+author_id, author_name]);
+            }
+
+            for (var i = 0; i < authors.length; i++) {
+                descriptor = "Author:";
+                if (last_descriptor == descriptor) descriptor = "";
+                else last_descriptor = descriptor;
+
+                let [author_name, author_id] = authors[i];
+                urls.push([descriptor, base_url_author+author_id, author_name]);
+            }
+
+            for (var i = 0; i < aggregator.data.series.tags.length; i++) {
+                let [tag_group, tag_id, tag_name] = aggregator.data.series.tags[i];
+                if (tag_groups[tag_group] == undefined) tag_groups[tag_group] = [];
+                tag_groups[tag_group].push([tag_name, tag_id]);
+            }
+
+            let tag_group_names = Object.keys(tag_groups);
+            for (var i = 0; i < tag_group_names.length; i++) {
+                let tag_group = tag_groups[tag_group_names[i]];
+
+                descriptor = tag_group_names[i].charAt(0).toUpperCase() + tag_group_names[i].substring(1) + ":";
+
+                for (var j = 0; j < tag_group.length; j++) {
+                    if (last_descriptor == descriptor) descriptor = "";
+                    else last_descriptor = descriptor;
+
+                    let [tag_name, tag_id] = tag_group[j];
+                    tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(tag_name.toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
+                    // console.log([tag_name, aggregator, aggregator.tag_filter_tripped, tag_array.indexOf(tag_name.toLowerCase()), tag_marker]);
+
+                    urls.push([descriptor+tag_marker, base_url_tag+tag_id, tag_name]);
+                }
+            }
+
+            callback(null, urls);
+        };
 
 
 

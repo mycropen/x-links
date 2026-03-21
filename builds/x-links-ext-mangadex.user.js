@@ -2,7 +2,7 @@
 // @name        X-links Extension - Mangadex
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.6.4
+// @version     1.7.0
 // @description Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
@@ -1265,7 +1265,6 @@
             "mangadex": "md",
             "dynasty": "ds",
             "bato": "bt",
-            "comick": "ck",
         }
         
         var replace_icon = function (ch_id, site, icon_name, apply_style) {
@@ -2912,39 +2911,39 @@
             callback(null, urls);
         };
 
-
-        // comick.io
-        class ComickDataAggregator {
+        
+        // weebdex.org
+        class WeebdexDataAggregator {
             constructor(final_callback) {
                 this.callback = final_callback;
                 this.context = null;
                 this.tag_filter_tripped = false;
                 this.data = {
                     series: {
-                        slug: "",
+                        id: "",
                         // the default title
                         title: "",
                         // other language titles
                         // some have a "null" language in the API; we ignore those
-                        // {"ja": "忍者と殺し屋のふたりぐらし", "ru": "Жизнь ниндзя и убийцы", ...}
+                        // API returns an array of strings per language. These are only the first ones each.
+                        // {'en': 'Playing Death Games to Put Food on the Table', 'ja': '死亡遊戯で飯を食う。', ...}
                         titles: {},
                         // "iso639_1"
                         language: "",
-                        // {genre_group: [[genre_name, genre_slug], ...], ...}
-                        genres: {},
-                        // [[tag_name, tag_slug], ...]
+                        // [[group, id, name], ...]
+                        // tag groups are: content, format, genre, theme
                         tags: [],
-                        // [[author_name, author_slug, is_artist, is_author], ...]
+                        // [[author_name, author_id, is_artist, is_author], ...]
                         authors: [],
                     },
                     chapter: {
                         vol: "",    // e.g. "5"
                         num: "",    // e.g. "21.5"
                         title: "",  // e.g. "Extras: Volume 4 & Twitter Part 4"
+                        series_id: "",
                         pages: 0,
-                        // [[group_name, group_slug], [group_name, group_slug], ...]
+                        // [[group_name, group_id], [group_name, group_id], ...]
                         groups: [],
-
                     },
                     final_title: "",
                 };
@@ -2974,21 +2973,21 @@
                 var template = "";
 
                 // "${language} ${author} ${series} ${chapter_num} ${chapter_title} ${pages} ${group}"
-                if (xlinks_api.config.comick.show_orig_lang && !xlinks_api.config.comick.use_flags && this.data.series.language)
+                if (xlinks_api.config.weebdex.show_orig_lang && !xlinks_api.config.weebdex.use_flags && this.data.series.language)
                     template += "${language} ";
-                if (xlinks_api.config.comick.show_author && this.data.series.authors.length > 0)
+                if (xlinks_api.config.weebdex.show_author && this.data.series.authors.length > 0)
                     template += "${author} ";
                 if (this.data.series.title)
                     template += "${series} ";
-                if (xlinks_api.config.comick.show_volume && this.data.chapter.vol)
+                if (xlinks_api.config.weebdex.show_volume && this.data.chapter.vol)
                     template += "${volume} ";
                 if (this.data.chapter.num)
                     template += "${chapter} ";
-                if (xlinks_api.config.comick.show_ch_title && this.data.chapter.title)
+                if (xlinks_api.config.weebdex.show_ch_title && this.data.chapter.title)
                     template += "${chapter_title} ";
-                if (xlinks_api.config.comick.show_pages && this.data.chapter.pages)
+                if (xlinks_api.config.weebdex.show_pages && this.data.chapter.pages)
                     template += "${pages} ";
-                if (xlinks_api.config.comick.show_group && this.data.chapter.groups.length > 0)
+                if (xlinks_api.config.weebdex.show_group && this.data.chapter.groups.length > 0)
                     template += "${group}";
 
                 if (this.data.series.authors.length > 0) {
@@ -3003,8 +3002,8 @@
                     // default title
                     aggdata.series = this.data.series.title;
 
-                    if (xlinks_api.config.comick.custom_title) {
-                        let title_order = xlinks_api.config.comick.title_search_order.replace(/\s+/g, "").split(",");
+                    if (xlinks_api.config.weebdex.custom_title) {
+                        let title_order = xlinks_api.config.weebdex.title_search_order.replace(/\s+/g, "").split(",");
                         let title_found = false;
 
                         for (var i = 0; i < title_order.length; i++) {
@@ -3027,7 +3026,7 @@
                 if (this.data.series.language) aggdata.language      = '[' + this.data.series.language + ']';
                 if (this.data.chapter.pages)   aggdata.pages         = "(" + this.data.chapter.pages + "p)";
 
-                if (xlinks_api.config.comick.show_group && this.data.chapter.groups.length > 0) {
+                if (xlinks_api.config.weebdex.show_group && this.data.chapter.groups.length > 0) {
                     let group_names = [];
                     for (var i = 0; i < this.data.chapter.groups.length; i++) {
                         group_names.push(this.data.chapter.groups[i][0]);
@@ -3040,34 +3039,24 @@
                 aggdata.title = aggdata.title.replace(/\s$/, "");
                 aggdata.title = aggdata.title.replace(/\s+/g, " ");
 
-                if (xlinks_api.config.comick.show_icon) {
+                if (xlinks_api.config.weebdex.show_icon) {
                     // modify the [MD] tag into an icon or flag
                     // apply a style if the tag filter is tripped
-                    let icon_name = "site_CK";
+                    let icon_name = "site_WD";
                     let apply_style = false;
 
-                    if (xlinks_api.config.comick.show_orig_lang && xlinks_api.config.comick.use_flags && lang_to_flag[this.data.series.language] !== undefined)
+                    if (xlinks_api.config.weebdex.show_orig_lang && xlinks_api.config.weebdex.use_flags && lang_to_flag[this.data.series.language] !== undefined)
                         icon_name = lang_to_flag[this.data.series.language]
 
                     // search for tags matching the tag filter
-                    if (xlinks_api.config.comick.tag_filter.trim() !== "") {
+                    if (xlinks_api.config.weebdex.tag_filter.trim() !== "") {
                         // "A a, bB, C c c" -> ["a a", "bb", "c c c"]
-                        let tag_array = xlinks_api.config.comick.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
-
-                        // check genres
-                        Object.keys(this.data.series.genres).forEach(key => {
-                            for (var i = 0; i < this.data.series.genres.length; i++) {
-                                if (tag_array.indexOf(this.data.series.genres[i][0].toLowercase() >= 0)) {
-                                    apply_style = true;
-                                    break;
-                                }
-                            }
-                        });
+                        let tag_array = xlinks_api.config.weebdex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
 
                         // check tags
                         if (!apply_style) {
                             for (let i = 0; i < this.data.series.tags.length; i++) {
-                                if (tag_array.indexOf(this.data.series.tags[i][0].toLowerCase()) >= 0) {
+                                if (tag_array.indexOf(this.data.series.tags[i][2].toLowerCase()) >= 0) {
                                     apply_style = true;
                                     break;
                                 }
@@ -3076,7 +3065,7 @@
                     }
 
                     this.tag_filter_tripped = apply_style;
-                    replace_icon(this.context, "comick", icon_name, apply_style);
+                    replace_icon(this.context, "weebdex", icon_name, apply_style);
                 }
 
                 // For some reason I absolutely cannot grasp, calling the callback before the previous block
@@ -3087,87 +3076,115 @@
             }
         }
 
-        var ck_aggregators = {};
+        var wd_aggregators = {};
 
-        var ck_get_data = function (key) {
-            var data = xlinks_api.cache_get("ck_" + key);
+        var wd_get_data = function (key) {
+            var data = xlinks_api.cache_get("wd_" + key);
             return data;
         };
-        var ck_set_data = function (key, data, err_callback) {
+        var wd_set_data = function (key, data, err_callback) {
             var lifetime = 7 * xlinks_api.ttl_1_day;
-            xlinks_api.cache_set("ck_" + key, data, lifetime);
+            xlinks_api.cache_set("wd_" + key, data, lifetime);
             if (err_callback !== null) err_callback(null);
         };
 
-        var ck_chapter_setup_xhr = function (callback) {
+        var wd_chapter_setup_xhr = function (callback) {
             var info = this.infos[0];
             var ctx = null;
             if (info.context !== undefined) ctx = info.context;
 
             callback(null, {
                 method: "GET",
-                url: "https://api.comick.fun/chapter/"+info.id+"/?tachiyomi=false",
+                url: "https://api.weebdex.org/chapter/"+info.id,
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
         };
-        var ck_chapter_parse_response = function (xhr, callback) {
+        var wd_chapter_parse_response = function (xhr, callback) {
             if (xhr.status !== 200) {
                 callback("Invalid response");
                 return;
             }
 
             var jsdata = xlinks_api.parse_json(xhr.responseText, null);
-            // console.log(["ck_chapter_parse_response", jsdata]);
+            // console.log(["wd_chapter_parse_response", jsdata]);
             if (jsdata == null) {
                 callback("Cannot parse response");
                 return;
             }
 
             var ch_data = {
-                vol: jsdata.chapter.vol || "",
-                num: jsdata.chapter.chap || "",
-                title: jsdata.chapter.title || "",
+                vol: "",    // e.g. "5"
+                num: "",    // e.g. "21.5"
+                title: "",  // e.g. "Extras: Volume 4 & Twitter Part 4"
+                series_id: "",
                 pages: 0,
-                // [[group_name, group_slug], [group_name, group_slug], ...]
+                // [[group_name, group_id], [group_name, group_id], ...]
                 groups: [],
             };
 
-            if (jsdata.chapter.md_images) ch_data.pages = jsdata.chapter.md_images.length;
+            if (jsdata.chapter) ch_data.num = jsdata.chapter;
+            if (jsdata.volume) ch_data.vol = jsdata.volume;
+            if (jsdata.title) ch_data.title = jsdata.title;
 
-            if (jsdata.chapter.md_chapters_groups) {
-                for (var i = 0; i < jsdata.chapter.md_chapters_groups.length; i++) {
-                    // "md_chapters_groups": [
-                    //   {
-                    //     "md_group_id": 35088,
-                    //     "md_groups": {
-                    //       "slug": "underpaid-civ-eng-scans",
-                    //       "title": "Underpaid CivEng Scans"
-                    //     }
-                    //   }
-                    // ]
-                    let group_data = jsdata.chapter.md_chapters_groups[i];
-                    ch_data.groups.push([group_data.md_groups.title, group_data.md_groups.slug]);
+            if (jsdata.data) ch_data.pages = jsdata.data.length;
+            else if (jsdata.data_optimized) ch_data.pages = jsdata.data_optimized.length;
+
+            if (jsdata.relationships) {
+                if (jsdata.relationships.groups) {
+                    var all_groups = jsdata.relationships.groups;
+                    for (var i = 0; i < all_groups.length; i++) {
+                        // 'groups': [
+                        //     {'id': 'psbc8fgfbn', 'name': 'Hachi7'}
+                        // ]
+                        ch_data.groups.push([all_groups[i].name, all_groups[i].id]);
+                    }
+                }
+
+                if (jsdata.relationships.manga) {
+                    ch_data.series_id = jsdata.relationships.manga.id;
+
+                    var seriesdata = wd_get_data("series_"+ch_data.series_id);
+                    var aggregator = wd_aggregators[jsdata.id];
+
+                    if (seriesdata !== null) {
+                        aggregator.add_data("series", seriesdata);
+                    } else {
+                        var series_url_info = {
+                            id: ch_data.series_id,
+                            site: "weebdex",
+                            type: "series",
+                            tag: "WD",
+                            context: "chapter_" + jsdata.id,
+                        };
+                        xlinks_api.request("weebdex", "series", ch_data.series_id, series_url_info,
+                            (err, data) => {
+                                if (err !== null) return;
+                                wd_set_data("series_"+ch_data.series_id, data, (err) => {});
+                                aggregator.add_data("series", data);
+                            }
+                        );
+                    }
                 }
             }
 
             callback(null, [ch_data]);
         };
 
-        var ck_series_setup_xhr = function (callback) {
+        var wd_series_setup_xhr = function (callback) {
             var info = this.infos[0];
             var ctx = null;
             if (info.context !== undefined) ctx = info.context;
 
             callback(null, {
                 method: "GET",
-                url: "https://api.comick.fun/comic/"+info.series_id+"/?tachiyomi=false",
+                url: "https://api.weebdex.org/manga/"+info.id,
                 headers: {"accept": "application/json"},
                 context: ctx,
             });
         };
-        var ck_series_parse_response = function (xhr, callback) {
-            const base_url = "https://comick.io";
+        var wd_series_parse_response = function (xhr, callback) {
+            const base_url = "https://weebdex.org";
 
             if (xhr.status !== 200) {
                 callback("Invalid response");
@@ -3175,143 +3192,115 @@
             }
 
             var jsdata = xlinks_api.parse_json(xhr.responseText, null);
-            // console.log(["ck_series_parse_response", jsdata]);
+            // console.log(["wd_series_parse_response", jsdata]);
             if (jsdata == null) {
                 callback("Cannot parse response");
                 return;
             }
 
             var series_data = {
-                slug: jsdata.comic.slug || "",
+                id: "",
                 // the default title
-                title: jsdata.comic.title || "",
+                title: "",
                 // other language titles
                 // some have a "null" language in the API; we ignore those
-                // {"ja": "忍者と殺し屋のふたりぐらし", "ru": "Жизнь ниндзя и убийцы", ...}
+                // API returns an array of strings per language. These are only the first ones each.
+                // {'en': 'Playing Death Games to Put Food on the Table', 'ja': '死亡遊戯で飯を食う。', ...}
                 titles: {},
                 // "iso639_1"
-                language: jsdata.comic.iso639_1 || jsdata.comic.country || "",
-                // {genre_group: [[genre_name, genre_slug], ...], ...}
-                genres: {},
-                // [[tag_name, tag_slug], ...]
+                language: "",
+                // [[group, id, name], ...]
+                // tag groups are: content, format, genre, theme
                 tags: [],
-                // [[author_name, author_slug, is_artist, is_author], ...]
+                // [[author_name, author_id, is_artist, is_author], ...]
                 authors: [],
             };
 
+            if (jsdata.id) series_data.id = jsdata.id;
+            if (jsdata.title) series_data.title = jsdata.title;
+            if (jsdata.language) series_data.language = jsdata.language;
 
-            if (jsdata.comic.md_titles) {
-                for (var i = 0; i < jsdata.comic.md_titles.length; i++) {
-                    // "md_titles": [
-                    //   {
-                    //     "title": "アンドロイドは経験人数に入りますか？？",
-                    //     "lang": "ja"
-                    //   },
-                    //   ...
-                    // ]
-                    let title_data = jsdata.comic.md_titles[i];
-                    // ignore "null" languages
-                    if (title_data.lang && series_data.titles[title_data.lang] == undefined)
-                        series_data.titles[title_data.lang] = title_data.title;
-                }
+            if (jsdata.alt_titles) {
+                // 'alt_titles': {
+                //     'en': ['Playing Death Games to Put Food on the Table', 'The Phantom Girl in Games of Death.'],
+                //     'ja': ['死亡遊戯で飯を食う。'],
+                //     'ja-ro': ['Shibou Yuugi de Meshi o Kuu.', 'Shiboyugi'],
+                //     ...
+                // }
+                Object.keys(jsdata.alt_titles).forEach(
+                    t => {
+                        series_data.titles[t] = jsdata.alt_titles[t][0];
+                    }
+                );
             }
 
 
-            if (jsdata.comic.md_comic_md_genres) {
-                for (var i = 0; i < jsdata.comic.md_comic_md_genres.length; i++) {
-                    // "md_comic_md_genres": [
-                    //   {
-                    //     "md_genres": {
-                    //       "name": "Ecchi",
-                    //       "type": "main",
-                    //       "slug": "ecchi",
-                    //       "group": "Content"
-                    //     }
-                    //   },
-                    //   ...
+            if (jsdata.relationships) {
+                if (jsdata.relationships.tags) {
+                    // 'tags': [
+                    //     {'group': 'format', 'id': 'jnqtucy8q3', 'name': '4-Koma'},
+                    //     {'group': 'genre', 'id': 'onj03z2gnf', 'name': 'Comedy'},
+                    //     {'group': 'genre', 'id': 'i9w6sjikyd', 'name': "Girls' Love"},
+                    //     {'group': 'genre', 'id': '13x7xvq10k', 'name': 'Slice of Life'},
+                    //     {'group': 'theme', 'id': 'nnuhxonb31', 'name': 'Aliens'},
+                    //     {'group': 'theme', 'id': 'h5ioz14hix', 'name': 'Delinquents'},
+                    //     {'group': 'theme', 'id': 'hobsiukk71', 'name': 'School Life'}
                     // ]
-                    let genre_data = jsdata.comic.md_comic_md_genres[i].md_genres;
-                    if (series_data.genres[genre_data.group] == undefined) series_data.genres[genre_data.group] = [];
-                    series_data.genres[genre_data.group].push([genre_data.name, genre_data.slug]);
+                    for (var i = 0; i < jsdata.relationships.tags.length; i++) {
+                        let tag = jsdata.relationships.tags[i];
+                        series_data.tags.push([tag.group, tag.id, tag.name]);
+                    }
                 }
+
+                // {id: [name, is_artist, is_author]}
+                let author_data = {};
+
+                if (jsdata.relationships.artists) {
+                    for (var i = 0; i < jsdata.relationships.length; i++) {
+                        // 'artists': [
+                        //     {'group': 'author', 'id': 'qylfwcvnn1', 'name': 'Ouchi Kaeru (御家かえる)'}
+                        // ]
+                        author_data[jsdata.relationships.artists[i].id] = [jsdata.relationships.artists[i].name, true, false];
+                    }
+                }
+
+                if (jsdata.relationships.authors) {
+                    for (var i = 0; i < jsdata.relationships.authors.length; i++) {
+                        // 'authors': [
+                        //     {'group': 'author', 'id': 'qylfwcvnn1', 'name': 'Ouchi Kaeru (御家かえる)'}
+                        // ]
+                        if (author_data[jsdata.relationships.authors[i].id] == undefined)
+                            author_data[jsdata.relationships.authors[i].id] = [jsdata.relationships.authors[i].name, false, true];
+                        else
+                            author_data[jsdata.relationships.authors[i].id][2] = true;
+                    }
+                }
+
+                Object.keys(author_data).forEach(key => {
+                    series_data.authors.push([author_data[key][0], key, author_data[key][1], author_data[key][2]]);
+                });
             }
 
 
-            if (jsdata.comic.mu_comics && jsdata.comic.mu_comics.mu_comic_categories) {
-                for (var i = 0; i < jsdata.comic.mu_comics.mu_comic_categories.length; i++) {
-                    // "mu_comic_categories": [
-                    //   {
-                    //     "mu_categories": {
-                    //       "title": "Android/s",
-                    //       "slug": "android-s"
-                    //     },
-                    //     "positive_vote": 5,
-                    //     "negative_vote": 0
-                    //   },
-                    //   ...
-                    // ]
-                    let tag_data = jsdata.comic.mu_comics.mu_comic_categories[i].mu_categories;
-                    series_data.tags.push([tag_data.title, tag_data.slug]);
-                }
-            }
-
-
-            // {slug: [name, is_artist, is_author]}
-            let author_data = {};
-
-            if (jsdata.artists) {
-                for (var i = 0; i < jsdata.artists.length; i++) {
-                    // "artists": [
-                    //   {
-                    //     "name": "Yakiniku Teishoku",
-                    //     "slug": "yakiniku-teishoku"
-                    //   }
-                    // ]
-                    author_data[jsdata.artists[i].slug] = [jsdata.artists[i].name, true, false];
-                }
-            }
-
-            if (jsdata.authors) {
-                for (var i = 0; i < jsdata.authors.length; i++) {
-                    // "authors": [
-                    //   {
-                    //     "name": "Yakiniku Teishoku",
-                    //     "slug": "yakiniku-teishoku"
-                    //   }
-                    // ]
-                    if (author_data[jsdata.authors[i].slug] == undefined)
-                        author_data[jsdata.authors[i].slug] = [jsdata.authors[i].name, false, true];
-                    else
-                        author_data[jsdata.authors[i].slug][2] = true;
-                }
-            }
-
-            Object.keys(author_data).forEach(key => {
-                series_data.authors.push([author_data[key][0], key, author_data[key][1], author_data[key][2]]);
-            });
-
-
-            // console.log(["ck_series_parse_response", "series_data", series_data]);
+            // console.log(["wd_series_parse_response", "series_data", series_data]);
             callback(null, [series_data]);
         };
 
-        var ck_ch_url_get_info = function (url, callback) {
+        var wd_ch_url_get_info = function (url, callback) {
             let series_id, chapter_id;
 
-            let m = /(https?:\/*)?(?:www\.)?comick\.io\/comic\/([^\/]+)\/([^\/\-]+)/i.exec(url);
+            let m = /(https?:\/*)?(?:www\.)?weebdex\.org\/chapter\/([^\/]+)/i.exec(url);
 
             if (m !== null) {
                 var url_info = {
-                    series_id: m[2],
-                    id: m[3],
-                    site: "comick",
+                    id: m[2],
+                    site: "weebdex",
                     type: "chapter",
-                    tag: "CK",
-                    context: "chapter_"+m[3],
+                    tag: "WD",
+                    context: "chapter_"+m[2],
                 };
 
-                // comick.io has a "country" field we can use for country flags
-                if (xlinks_api.config.comick.show_icon)
+                if (xlinks_api.config.weebdex.show_icon)
                     url_info.icon = "replaceme-"+site_short[url_info.site]+"-"+url_info.id;
 
                 callback(null, url_info);
@@ -3319,66 +3308,69 @@
                 callback(null, null);
             }
         };
-        var ck_ch_url_info_to_data = function (url_info, callback) {
-            var aggregator = new ComickDataAggregator(callback);
+        var wd_ch_url_info_to_data = function (url_info, callback) {
+            var aggregator = new WeebdexDataAggregator(callback);
             aggregator.context = url_info.id;
-            ck_aggregators[url_info.id] = aggregator;
+            wd_aggregators[url_info.id] = aggregator;
 
-            var chapterdata = ck_get_data("chapter_"+url_info.id);
-            var seriesdata = ck_get_data("series_"+url_info.series_id);
+            var chapterdata = wd_get_data("chapter_"+url_info.id);
 
-            // console.log(["ck_ch_url_info_to_data", url_info.series_id, url_info.id, chapterdata, seriesdata]);
+            // console.log(["wd_ch_url_info_to_data", url_info.id, chapterdata, seriesdata]);
 
             if (chapterdata !== null) {
                 aggregator.add_data("chapter", chapterdata);
-            } else {
-                xlinks_api.request("comick", "chapter", url_info.id, url_info,
-                    (err, data) => {
-                        if (err !== null) return;
-                        ck_set_data("chapter_"+url_info.id, data, (err) => {});
-                        aggregator.add_data("chapter", data);
-                    }
-                );
-            }
 
-            if (seriesdata !== null) {
-                aggregator.add_data("series", seriesdata);
+                var series_id = chapterdata.series_id;
+                var seriesdata = wd_get_data("series_"+series_id);
+
+                if (seriesdata !== null) {
+                    aggregator.add_data("series", seriesdata);
+                } else {
+                    xlinks_api.request("weebdex", "series", series_id, url_info,
+                        (err, data) => {
+                            if (err !== null) return;
+                            wd_set_data("series_"+url_info.series_id, data, (err) => {});
+                            aggregator.add_data("series", data);
+                        }
+                    );
+                }
+
             } else {
-                xlinks_api.request("comick", "series", url_info.series_id, url_info,
+                xlinks_api.request("weebdex", "chapter", url_info.id, url_info,
                     (err, data) => {
                         if (err !== null) return;
-                        ck_set_data("series_"+url_info.series_id, data, (err) => {});
-                        aggregator.add_data("series", data);
+                        wd_set_data("chapter_"+url_info.id, data, (err) => {});
+                        aggregator.add_data("chapter", data);
                     }
                 );
             }
         };
 
-        var ck_create_actions = function (data, info, callback) {
-            let aggregator = ck_aggregators[info.id];
+        var wd_create_actions = function (data, info, callback) {
+            let aggregator = wd_aggregators[info.id];
 
             // do nothing if the aggregator doesn't have all the data yet
             if (aggregator.data.final_title == undefined) return;
 
-            const base_url_series = "https://comick.io/comic/";
-            const base_url_group  = "https://comick.io/group/";
-            const base_url_author = "https://comick.io/people/";
-            const base_url_genre  = "https://comick.io/search?genres=";
-            const base_url_tag    = "https://comick.io/search?tags=";
+            const base_url_series = "https://https://weebdex.org/title/";
+            const base_url_group  = "https://weebdex.org/group/";
+            const base_url_author = "https://weebdex.org/author/";
+            const base_url_tag    = "https://weebdex.org/search?tag=";
             const tag_marker_Y    = " [X]";
             const tag_marker_N    = "";
 
-            // [[author_name, author_slug], ...]
+            // [[author_name, author_id], ...]
             let artists_authors = [];
             let authors = [];
             let artists = [];
 
-            for (var i = 0; i < aggregator.data.series.authors.length; i++) {
-                let [author_name, author_slug, is_artist, is_author] = aggregator.data.series.authors[i];
 
-                if (is_artist && is_author) artists_authors.push([author_name, author_slug]);
-                else if (is_artist)         artists.push([author_name, author_slug]);
-                else if (is_author)         authors.push([author_name, author_slug]);
+            for (var i = 0; i < aggregator.data.series.authors.length; i++) {
+                let [author_name, author_id, is_artist, is_author] = aggregator.data.series.authors[i];
+
+                if (is_artist && is_author) artists_authors.push([author_name, author_id]);
+                else if (is_artist)         artists.push([author_name, author_id]);
+                else if (is_author)         authors.push([author_name, author_id]);
             }
 
 
@@ -3387,8 +3379,10 @@
             let urls = [];
             let last_descriptor = "";
             let descriptor = "";
-            let tag_array = xlinks_api.config.comick.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
+            let tag_array = xlinks_api.config.weebdex.tag_filter.trim().replace(/,\s+/g, ",").toLowerCase().split(",");
             let tag_marker = "";
+            // {'format': [[tag_name, tag_id], ...], 'genre': [[tag_name, tag_id], ...], ...}
+            let tag_groups = {};
 
 
             if (aggregator.data.final_title) {
@@ -3396,8 +3390,8 @@
                 if (last_descriptor == descriptor) descriptor = "";
                 else last_descriptor = descriptor;
 
-                if (aggregator.data.series.slug)
-                    urls.push([descriptor, base_url_series+aggregator.data.series.slug, aggregator.data.final_title]);
+                if (aggregator.data.series.id)
+                    urls.push([descriptor, base_url_series+aggregator.data.series.id, aggregator.data.final_title]);
                 else
                     urls.push([descriptor, null, aggregator.data.final_title]);
             }
@@ -3407,8 +3401,8 @@
                 if (last_descriptor == descriptor) descriptor = "";
                 else last_descriptor = descriptor;
 
-                let [group_name, group_slug] = aggregator.data.chapter.groups[i];
-                urls.push([descriptor, base_url_group+group_slug, group_name]);
+                let [group_name, group_id] = aggregator.data.chapter.groups[i];
+                urls.push([descriptor, base_url_group+group_id, group_name]);
             }
 
             for (var i = 0; i < artists_authors.length; i++) {
@@ -3416,8 +3410,8 @@
                 if (last_descriptor == descriptor) descriptor = "";
                 else last_descriptor = descriptor;
 
-                let [author_name, author_slug] = artists_authors[i];
-                urls.push([descriptor, base_url_author+author_slug, author_name]);
+                let [author_name, author_id] = artists_authors[i];
+                urls.push([descriptor, base_url_author+author_id, author_name]);
             }
 
             for (var i = 0; i < artists.length; i++) {
@@ -3425,8 +3419,8 @@
                 if (last_descriptor == descriptor) descriptor = "";
                 else last_descriptor = descriptor;
 
-                let [author_name, author_slug] = artists[i];
-                urls.push([descriptor, base_url_author+author_slug, author_name]);
+                let [author_name, author_id] = artists[i];
+                urls.push([descriptor, base_url_author+author_id, author_name]);
             }
 
             for (var i = 0; i < authors.length; i++) {
@@ -3434,38 +3428,37 @@
                 if (last_descriptor == descriptor) descriptor = "";
                 else last_descriptor = descriptor;
 
-                let [author_name, author_slug] = authors[i];
-                urls.push([descriptor, base_url_author+author_slug, author_name]);
+                let [author_name, author_id] = authors[i];
+                urls.push([descriptor, base_url_author+author_id, author_name]);
             }
 
-            Object.keys(aggregator.data.series.genres).forEach(key => {
-                for (var i = 0; i < aggregator.data.series.genres[key].length; i++) {
-                    descriptor = key + ":";
+            for (var i = 0; i < aggregator.data.series.tags.length; i++) {
+                let [tag_group, tag_id, tag_name] = aggregator.data.series.tags[i];
+                if (tag_groups[tag_group] == undefined) tag_groups[tag_group] = [];
+                tag_groups[tag_group].push([tag_name, tag_id]);
+            }
+
+            let tag_group_names = Object.keys(tag_groups);
+            for (var i = 0; i < tag_group_names.length; i++) {
+                let tag_group = tag_groups[tag_group_names[i]];
+
+                descriptor = tag_group_names[i].charAt(0).toUpperCase() + tag_group_names[i].substring(1) + ":";
+
+                for (var j = 0; j < tag_group.length; j++) {
                     if (last_descriptor == descriptor) descriptor = "";
                     else last_descriptor = descriptor;
 
-                    let [genre_name, genre_slug] = aggregator.data.series.genres[key][i];
-                    tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(genre_name.toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
-                    // console.log([genre_name, aggregator, aggregator.tag_filter_tripped, tag_array.indexOf(genre_name.toLowerCase()), tag_marker]);
+                    let [tag_name, tag_id] = tag_group[j];
+                    tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(tag_name.toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
+                    // console.log([tag_name, aggregator, aggregator.tag_filter_tripped, tag_array.indexOf(tag_name.toLowerCase()), tag_marker]);
 
-                    urls.push([descriptor+tag_marker, base_url_genre+genre_slug, genre_name]);
+                    urls.push([descriptor+tag_marker, base_url_tag+tag_id, tag_name]);
                 }
-            });
-
-            for (var i = 0; i < aggregator.data.series.tags.length; i++) {
-                descriptor = "Tag:";
-                if (last_descriptor == descriptor) descriptor = "";
-                else last_descriptor = descriptor;
-
-                let [tag_name, tag_slug] = aggregator.data.series.tags[i];
-                tag_marker = (aggregator.tag_filter_tripped && (tag_array.indexOf(tag_name.toLowerCase()) >= 0)) ? tag_marker_Y : tag_marker_N;
-                // console.log([tag_name, aggregator, aggregator.tag_filter_tripped, tag_array.indexOf(tag_name.toLowerCase()), tag_marker]);
-
-                urls.push([descriptor+tag_marker, base_url_tag+tag_slug, tag_name]);
             }
 
             callback(null, urls);
         };
+
 
 
 
@@ -3475,12 +3468,12 @@
             name: "Mangadex & Dynasty links",
             author: "mycropen",
             description: "Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to",
-            version: [1,6,4],
+            version: [1,7,0],
             registrations: 1,
             main: main_fn
         }, function (err) {
             if (err === null) {
-                xlinks_api.insert_styles(".xl-site-tag-icon[data-xl-site-tag-icon=lang_jp]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAUVBMVEX////89ffstsPjlaj77/LacYq+CTS8AC2/CjXacov78PP22+HGJUvGJkz23OLac4z99vjst8Tjlqnkl6nkmKrsuMW/CzbbdY3GJ0323ePadI1SYYEeAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkH80BkfYAAAB6SURBVCjPzZHJDoAgDEQRVBCVVXD5/w+VGIMQSrj6rvOaTlqE/kaHCcFdNe6HkQbYxOF8XujLKsD5mAejB4SBJkigH0sFpgpB0wxdCCYXbCHYXNhaK1yjpC9LIpkKO3AHvn75AR5bROM4K8+STw9/VZ4VUM4Yp9DfuAEcEgb8vRe9xgAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMy0wMS0xMlQwMTozMToyMiswMDowMJwMZyQAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjMtMDEtMTBUMDM6NTA6NTkrMDA6MDAFGLMuAAAAAElFTkSuQmCC)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_cn]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAclBMVEXuHCXxQB/xRx7vKSP4oBD4pA/uHyX0cRf0cBfwOCDuIiTuICTuHSXvJCTvKyP6vQvxSh381wfvKCPvLyL6tgz//wDwMiH1fhX4mxD6uwv6wgryUB3vIyT1dxbyURz+7wPvJyP2iRP4oQ/zXRrzWRv///96F0p+AAAAAWJLR0QlwwHJDwAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkN/i0OQwAAABvSURBVCjPY2AgATAy4ZRiZgaRLKxsuBSwc4ApTi5uHiyyvHx8/Px8fLxApoCgEBYFwiKiQMAvBmRyiQtjtUFCVFQCr/MlpaQkISxprPIysjw8sjIglpy8GF6TFPiEufHJKyqx4dXPoKzCMAoGMwAAo/cEXRjamKYAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_kr]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABoVBMVEX///+7u7vCwsLBwcG9vb3u7u4cHBySkpJ5eXl2dnYdHR3w8PBeXl5paWkwMDCHh4c3Nzf4+Pj29vaFhYU0NDRmZmaOjo6zs7MiIiJzc3NLS0tRUVF+fn56enpNTU1JSUmMjIxnZ2e2trbv7+8eHh4VFRWGhoYuLi75+fn9+PnpparYXGXPN0LPOEPYXWbqqa7++/tqamqxsbEXFxcbGxvNzc1/f3/Ozs733+HSQ07NLjrXWWL66+zY2NgYGBh8fHzPz8/09PSQkJBOTk739ffMOkdSUlKPj4/19fWkhKLrq6++vr56T3y0MUaWNVa3MUXZX2g0Rox7OGMCRp8AR6ADR55vOmjQPEcJTaNoOmzLLzvLLjtiO2+pP1kzbLMZRJQ3QIQXRJV9VYCOrdWjjaqUlJRPT099fX32+fwtZ7EyaK/69/lTU1PQ0NCAgIAxMTHh6fQya7Pm7fbX19czMzPT09MkJCSgoKD3+fyQr9Y1bbQKTqQ3b7SUstf5+/0nJyeRkZG0tLQhISGsrKxXV1d4eHhlZWX+/v5xcXG5ubm8vLzgoCRaAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAElAS4VndQAAAFISURBVCjPY2CgEmBkQhdhZkHmsbKxc6DKc7JzcSNxeXj5+AUEEXwhAWERUTEEX1xCUkpaBtkAWTl5BUUlGE9ZhV1VTV2DgUFTS1tHV0/fgIFBw9DImN2EFarA1IyP39icgcHC0goMrG0YGGzthEXsHWBGODo5Ay1wcbWCAmugGbJu7h5IdrIALfC0ggMvBgZBb4yw8IFI+vr5WwVgDaxAsHxQcEhoWDhWBRGRUVbRMSEgEItVQVxIfEIiWD4kCUOSCejI5BA4SAE6Ejl2PFLT0hkYMjJh8lnZDAwcOexCMPncvHx+Y1MGhgKoisIiBoZiO+ESs1KoAm4V9rJyUFBXVFZVV9fU1gEtMDSvb2CDBTVDY1Nzi3Q6spta03JYRJUQfB7efP4SISRHlQiLtKWiJhjJdmQT2jsaVJATDEMnSgIDga4uBioBAMJERI7yM7r7AAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_hk]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABFFBMVEW6AAC6AQHFKSntvLzrtLS+DQ345OT+/f355+e7AgLWZmb+/Pzwycn////DIiLGKyvBGxu/ERHfiYnyzs7HMjLfiorilZXUYGC8BwfadXXxzc3VZ2f45eXln5/TXFz77+/vw8O7AwPTXl7xy8vYbm7ruLjGLCzmpqbtvr767u756urMQ0O8CAjz09P99vb34uLwx8fDICDHNDTLQEDMRETadnb12dnmoaG/ExPAFhboqan99fX02trgjIzEJibz0NDz1NTJNzfcf3/ZcXHuvr7MQUHuv7/EJSX9+Pj67e3SWFj//v6/EhLehob++/vwy8v88/Ppra3HMTHCHx/uwMDilJTWZ2f99/f12tq8BgbSWVnFKirY+jP4AAAAAWJLR0QN9rRh9QAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3Izr/obEAAACmSURBVCjPY2AYhIARvzQTMwteeVY2dg5OfAq4uHl4+XBJ8gsIMgqx8QqLiIqJS2BTIMnLKyUtIyvHwSbPrqCIRYESrzKviqqaugavjKaWNhYFOrp6+gaGRsYmpmbmFlgdYWllbWNrYmfvYIjTE45Ozi6uMmxuuOTdPXg1Pb14Nb19cCjw9fMPCAziFeYNxi5vEcKrF8rKEBYegTMwLSJBZFQ0w7ADACDyErqWmAEaAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_id]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYAQMAAAChnW13AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEXnABH///9GPYQdAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3KkMjGRUAAAAQSURBVAjXY2CgAPwHAjIJAJsjL9Ejwc0pAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_th]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYBAMAAABpfeIHAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEWlGTHq2d/09fhGQ18tKkrb2+L///+mSNUGAAAAAWJLR0QGYWa4fQAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3LkRO3QwAAAAkSURBVBjTY2CgAhBEAwxKaIAIAWM0wOCCBugkEIoGyPELFQAAxhk0Eaz+gbcAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=site_DS]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAYBQTFRF+YqH/+XMlC4zbAMG/sSr2oN9/Hh58E1V1E1So4CX2dvn6ez3Zlqg/8uz/OrX+WVn49Xc2ur9/tvFuJag6+Tp/tO86Pf/ulZW5pWK2cPJnj1C9pyU/bql9t3Z2H13p0VIu2Zm06Sjy2lmpVZb9ePh9t3L/bSjwoeH/FtguXl82ouD/v/+qFxi5sjG3Z6YmU9W5qaZ+m1w/r+p+JKN2WVn+6mc1ztEzZaXwXFusjY9tEVL5by46mVo8f7/9LOg5Kqj6J2R7Hl327O128rP//Pa+qSYx3l049zk/cSyqmFl1ef9+r6x/K2fzDA62tPc3ef21ZeM9byq1a6w3uLt6bmo9q2cyq22yqOox46QpU5R88y+//v26omF9dbFilZz/LWo/NbO/fDs9MOw/M/B/8+3hh8l/9bC/8S9fhMZ/t/I8q+h+aCW2OX538/V/8ev8KeX1d7wsk9P/vTw8NbR0bzC9LWpvF9e+bylyZ6gznFs+YB/opfB1FxepWBvr2xu8vT5Ltt4cwAAA3xJREFUeNo0kflb2loQhseTEKgQwr6EyCprXJpQEFAUUUERceG2Ba1aldAAEo22aUnR+6/fg+39fjjPec68M9/MHDD/levtsP2528Y2l8tVt9XHNuDL5kajYf/ess+3XIXXsmf+2PMphqI/SaUSSnYR/OuxNxr3xx1/uz6/jJJlj3Pe419FNZpWfhZOCl0wm+32xuM4vNOut5Nsp+xZ8pd3ulKhp5CkIZOsAY7b79uRcN02vxPKJMsu6XO5tYS0niKSPi1YgWMMtOvdZN3WTmub6fKYSPP1GKvSJCmKXq0C9zPgF6rijtmHzBL/SYrxY7YUohWSEytRAzQw0FJVv82VVt3hAz69ilzPSGWHMw/OUIDHR7s9Ha0t2/yo0oum+dgrWrthQ7KsPtCi6KuA0+lMo6m2bitoihLt8Og1xt6GSpJEyD6FHA5xhVZoEtU6EfZBJCdni3I4KQe9vsz6GiF9VEQMmJ0sOVn5uhRVOCV6VkWdDiqZ+s/rfIRQFfIUHv3IR2o/VkocSSqTavrl3Yu3+GHhaeGJPyAe6FOox1TlISp6fXhwOvj5wGK52i5uW58jNxcLskbfQlL6SPoMmQmemuz50jGLJUaZtq0HxPLTRVLaPAWppoiG4IQTOY7r/YOuLJYSxQhfu8Svp5tFZAhCiOPEYHTYo2mSc59LFovFRAnMtw6RvFh4Dgcz4Es0E4bNwWGmVqEdA/XlStoQmFR2WTpb7JytaQYIBHLNL5mYRBDIPRi8R0SRYpgUAysL4SrPb5UgABCSCSx0Mhg47koyzICUkdpWlxerwS8QD5QIQkbhyv7cHAYO1aIgCKl8/ujINC1N4QecQ57w+hS3uz/AuvvWlE0UY5oBxnxehw9AUdNpMyEqPQd2cLgPr4sb+gZjzB8ZjUeMTm2DIFA67F0rbsesgpuuFHEOZcwbU0YjowOAQG2Y9L0EOQPmBv1+ODTSKQq3iSXo2SwIU5Oe/R/ABArlsjpeVYphBAovATamFGCAxsAc1q3sFfeyQOFRcHzUHIKgQzbQFGnHG7C7QrB0IjfKYvNZnngLOD5qcsrfArsxgnjfE6+vc6NR7lqk3ZcAgVyC2+/1B28F1uVX1B3c0fv74r4ys43DKHF415vlW63W3S1Z+v2OOLE63Hhxb6Zx2Do9v4zPtGi1rsks/u5VOWK9/PMWj5//J8AARTPMVw1SAkMAAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=site_MD]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgEAYAAAAj6qa3AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABmJLR0QAAAAAAAD5Q7t/AAAACXBIWXMAAABAAAAAQABiQ2NbAAAAB3RJTUUH5wENFwg5hirHAgAACb1JREFUaN7dWX1UlFUa/933HeZLYYDBmAEEAmFQQD5GUQMRMRUQT/ElnF3F1lPpqnhs/Yrj4tKmtbW2m1pHay3jaGWR5iK6faibYmbY6GBpKAmKxYcCDgzzPe97949ZmIImQND27O+fOed9n/s89/e7zzz3ufclGGGEhKjVarVMJvjakm33nz8fH9JuQmfNgjeSsHTiRJKPD6kwKAgzoSfvenv3DmxFEn2pvZ0eogqcunEDduJDbl+8SP5E19Cpx4/bPpMQwWOVlfX1Go1G09k5UvMlw3UQtj7ySJx+/HiiwybqvmEDsSOPHsjPx+fYS54Vi0dM2cdpKf3QZKJKcp6seu89nCK5bNMLL1x9/Ru1RlNbe98EUKvVarVaKu2OMZ3mQrdsoY+hgb62ciV5guSRmQLBiBEeAPQftJz+224nzWQVObFjh+FL9z3ihI0bv//b2bFnx5pMIy6Aakm0PlqvUmEun8UGHzyITWjG2AkTBjs+MTEkJCAAmDcvLEyhAIKDpVKBACgsrKiorgbsdo7j+WEokotQJFRXo9nuQy5lZV1588qbFz5vahq2ABER0dHx8Wo1lfFPcsc++gg67CKpPj6u7GUyiUQkAkpKUlJiYoDUVJHIYAAkEr2+owOwWmfMyMoCLBZf38BAICFh6dKnnx4G8b6wYBUam5r4ydQbHfPm1ZVfztNCq3Vlzrh60bPiAxFnGEIIAZ55Zs4ctRo4cyY52dcXyMzU669eBcRihmEYwGBYvfrllwGL5eGH8/OBc+fOn6+pGUHiPRBhOwL9/BgTgLTKStUS1ZK4RD+/QQsQjGCkQCyGlmtjLr7/viviwcFyuUwGVFVlZ8fFAfn5RuO1awDLGgxdXQClo0fLZIDR+PjjpaUAz8vlCgVASHd3Zyfw1lsff3zy5D0QoAd1pBQt/v50C5vOr6uo6KldAwogem/Uw7oDzz0HA8kkKyZO7Pt++vTQ0IAAoLJyyhS5HJDLW1vr6/vHt1jS0hYuBHje0/PH8rHszZt1dUBNTWNjS8s9FOC/ICmklJSq1d2NpnPc/uJilwL0prySbqepRUV9DRMTHcR37Ro3jmUBgaCrq6Ojf0BKRSKJBLBa4+JmzOj/nmEcteCVVzIzExKApCSH33sNepwIseyppyKMEUa1WqnsJwB9hv+K3b9hQ9/tzN/f09PdHdi5c/x4qdSR4r/UhnBcYKBKBQBubiKR87lAcPlydTUgFJ4+ffgwkJzc0VFbC+ze7ednMABVVTk58fFARkZkZEjIyAtA8qBC+6hRvJhZaZ+9aVPv87WL1i4qxQMPHNt68ugnc69fNyUbFcZWiaTH4MSJ3NzJkwE/v5aWurqBA9lsavXMmYDZnJZWWAhIpfv3v/QSwLLXrn3zzWCmyjAsC3z5pbd3WBjwxBOHD587B1itHMdxwxeC/pl+gBtGI/mY+6spS6Egb5zf8/eyR7dvz1CmFczZWVRUUVFZefQoIJHU1Wm1wKJFnZ1ffz34ADyvUAQGAoQ4iiEher1Od/cTbm5WKMLCgPT0igqtFjCbrVabbQSE8CNm+n1BAeP3gzJXeWrOHKlUKpVKgYKCBQtyc4GcnJycrKyhO2aYlpbGxuET74Gvr8l05w6wdu2aNatXD99fLxJpIflDairja3/gqzHv9y9DdntoaHQ0QKm7u6fnCAYeIuz22NikJCAjIz09LQ0QiUSiH9eWuwWJhwCBMTHMGNsYm0+H8z/vhJubUAhYLCkp2dn3nzilYrFUClgsM2ZkZwMCgUAgEABRUZGRg2/AfwGVNBx/CglhJKmSVEkq47IjtFoTE+fPBzjuwQcjI+8FVUcn2dDg6xsWBhw4IJGEhAB793p4REUB333X2tre7rTOzJw3Lz19BMLWkkP4nYcHQ4hjAq7haGWNxsWLi4sBjvPzG8ltilKhUCwGGhpsNpYF/P0nTXroIYBhIiJiY4Fvv62tvXLFaT937uzZs2YBKpVKFR4+jLgncRldNhu7Ur5SXuRbUiKeJJ4kinedCT37ut0eH5+SAjCMo8qzbFPTz3WCg4dU6u4OKJWZmQUFgFyenJyeDqhU4eHh4UB4eHh4WNhPl4NhgKlT4+Pj4wGt9osvNBqgrU2vH8o1CaG4TpfcvMkunLBwwqKEdeu8U71TvROFwoGHsqxAANjtEyYkJAA2W3T0tGk/ckzMZqPR8WswONaYUmeHyPNBQSoVYLVOn/7II4DZvGDBqlUAx/n7h4YOnoBcXl/f2QkkJorFSiXw9ttabVXVEDKgjJ4he2trBe2/v/PWnbPXr48DngWiooa6fjyvUAQFAWZzVtayZT8JQXkeoNRisVgAs5lSADCZzGazGeA4u53jALHYarXbge7ujo6WFkcbxDAAyzoaIjc3Nzc3N0Amk8k8PJze7fbgYLkcIKS29udK+IAZYCD/JLqzZ5nWttadt2YdOTJ0FwOGIAwDECIWSySARCKRSCSAt7eXl5eXk1B3d3e3wQAIhUKhUAhIpQ47lhUIWLanRAJms0M4Sh0ZxfNeXlIpUFFhszU2Dn12dCyvo8uPHxe0vXbrXy2Xtm2zFFtiLd+vXy8KEAWIAsiw7wr7guMcrWxnZ1dXV5fzuVKpVCoUA4+32Ww2m80hCCHArVu3b9++Dbz77v795eVDmQgmoVivF7xBIqzMqVO9RD+Z+OnSY2U1NVOqEl6c/Gj/Y/DdomfFXO02bW1tbe3tToI9K88wjgwSiUQiodCZQe3t7e0dHcCTTy5fXlQENDc3Nw/lWE2fo3G0YuvWqzmX99UErlvXe+prWFEffyNpxYo4a6w1xlpV1ZOSw0Vf4jqdTtfZ6UxpLy/HX6KH6EDYtev113fvHjpx3AKLEKuV/4H9LX9p2zYA+4CfuRPcc7EsaZ/nkSOy7zzWuJdlZAxXgJ4MGEgYV+A4nud54MKFCxe0WuDgwUOHKipc+3UJOWJpZknJlTOX3q7ZvHlz7zz62qUgBSkQCJoP3t6i23f6NIrxDrZOmTJcIX4t0M9oKS3VaNwzJX8RPDttmkaj0Wg0zvOkyzUoRQqmIjh41cnQjaLysjLxB4Tg2JgxvzahwcK8nP8jdG1tr0puXqEfLV5cEvxpzKnOhoa+dgMmIaXLPklBVBRAWfpq/6uy/10QjqzYsYOQXXM+g+urmCFvd5Tm5eXlCYWAj09z86hRvzZNJ9ralEqDgZDy8vJyq3Wwo+7iU5aXV309pQC/2P2xwkIA63Fo82YA48GNHn0fGe/BbJMJIFZsfPFFQHG0e9zzzwMYSlcw/I+jlK74TapnUBBgG83FJCTcP/5u3WxNdTUhr75zQnfjxv2L+3+G/wD+yPgppHtX2wAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMy0wMS0xM1QxOTowOToxMyswMDowMFel7gwAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjMtMDEtMTNUMTk6MDk6MTQrMDA6MDDjX2g+AAAAAElFTkSuQmCC)}.xl-site-tag-icon[data-xl-site-tag-icon=site_CK]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAsTAAALEwEAmpwYAAAGMWlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgOS4xLWMwMDIgNzkuYTFjZDEyZiwgMjAyNC8xMS8xMS0xOTowODo0NiAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0RXZ0PSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VFdmVudCMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKFdpbmRvd3MpIiB4bXA6Q3JlYXRlRGF0ZT0iMjAyNS0wNS0yNVQxNDoxMzoyMiswMjowMCIgeG1wOk1vZGlmeURhdGU9IjIwMjUtMDUtMjVUMTQ6MTQ6MjMrMDI6MDAiIHhtcDpNZXRhZGF0YURhdGU9IjIwMjUtMDUtMjVUMTQ6MTQ6MjMrMDI6MDAiIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjllZWZlOTMwLWM0YjctMjM0OC1iOGFkLTVhOTY1Yzk0ZDBhNSIgeG1wTU06RG9jdW1lbnRJRD0iYWRvYmU6ZG9jaWQ6cGhvdG9zaG9wOjM1YjkwOWVmLWVhNjYtNjU0Ni04ZGZjLWM0YjViMDJiNTc1NCIgeG1wTU06T3JpZ2luYWxEb2N1bWVudElEPSJ4bXAuZGlkOmU4ZmY4M2NmLWY3YjAtNmU0MS04YTZlLTAwOWMxZGZhMmUzMCI+IDx4bXBNTTpIaXN0b3J5PiA8cmRmOlNlcT4gPHJkZjpsaSBzdEV2dDphY3Rpb249ImNyZWF0ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6ZThmZjgzY2YtZjdiMC02ZTQxLThhNmUtMDA5YzFkZmEyZTMwIiBzdEV2dDp3aGVuPSIyMDI1LTA1LTI1VDE0OjEzOjIyKzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgMjYuNCAoV2luZG93cykiLz4gPHJkZjpsaSBzdEV2dDphY3Rpb249ImNvbnZlcnRlZCIgc3RFdnQ6cGFyYW1ldGVycz0iZnJvbSBhcHBsaWNhdGlvbi92bmQuYWRvYmUucGhvdG9zaG9wIHRvIGltYWdlL3BuZyIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0ic2F2ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6OWVlZmU5MzAtYzRiNy0yMzQ4LWI4YWQtNWE5NjVjOTRkMGE1IiBzdEV2dDp3aGVuPSIyMDI1LTA1LTI1VDE0OjE0OjIzKzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgMjYuNCAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+jGxdIwAAHHlJREFUeNrdm3mYVNWd9z/nnLvU1tUr3dBAswjKjiCbyqoI4oZLNBEVY9xijDFqTIwLE2N0EuOaMWOiEzVOZhJjiEaDikpcEdwFF0BWAWloeqvu2u52zvtHdasoaDDD5H3fU899btVTt26d8/0t5/tbrjDG8OkhhGCfDwEomHrkZOyYjV/Mk7DiPL3o2QZp+JWJ6JdOxxs7OgvnAhu1ACNAaAnAp+fd/VlS+l6jP/t/gNG7/s7inzkMuE4SHQYk3TKeWPh0PwEvRtCnX1kZLZnOYUrwdiAZYgRb98UU5D9z8RgIA4nrlCF9hzjcUIvsM3/SDH73r79g3pRZKEPSCObsq2n88wBAgpZIYyFDxdOPPjm4TMW/VmMnmXfsMVQDh4we3a2iB/1/CEDJRuNWjMiLsDBXelFBnnL8MdRWxHHtIrnOxu6LO/fVLP65PgAIigUWP7GoP5gz9kvaTJ85EVSBTLEDEfO6L2v9fwkABYwDZgIzgESXBDu6zi3AH4DXQRP5WeKW+aEKUSecMptEnaS6MkHCTfK3da8SlHS07f9aAORHCi1ng7wA5HSwyhESjPUpK9NACCL8HoSvQPjvzz3/7FLbcFYsgfnuZaeLijToqIDneTQVWgnNP1kD6nr26PLapYU4jkWxWERZAiLN9qZWFbet6wuB/j4qJohXm0FDxjD8wEnU9x5Ez579yGc9sh3tFAsZduxYzxuvLmHb5hUTyLdPCBSRBeqCb04ild6J7QT4ATjxGpo6swQGCGkTFtakiZPCjvYMALZtA/DWWyt361v2mQZYloWQAikstjdtrwf+UAjCKbFkvTnzvIvZf+QkUQgdfBMHK4kRSVxLEkuHEBUZNGQ0Ew45lO2N77LkiT+w5pWXVF1vzNfnzxUJO4+J8lhWHD/SZDpzpf90rbtDL+yzbOny94GjRo4avqmlpYXautp9rwGmS4WFKCGrNUhhsW3b9v2UTC1HUzN81CTmnXGBsOK1BGEa2y5DKoUXSIIQpJBYKoZlOwhjk4q59K1PkY4vBeC8044W/Wp7oIMmhDG4toUONLmdbTgW+GHYT9oCKdXQ0AsXr161evyIESM6PM/7398Gc7kcgW+QpG6MtKkZO2EKVbW9uOn2m7nz7tt4aekSmnZ8gPaLFDvbsUUEUYHAy1DMNeHn24j8LJnmnbz6/PPUxmHuUTPozGXJFEOyOo5nV1LQKVo7ffwQbr/9Vl5++RWOmjMHYH9gktYa13X/N5yg3MW2bDfOju1tUzTqxOqa3ugIXnj6z+Aa2lrfZNM7i7BqBjH/jEsZP/4wWtszpGI2O3du5t2Vy9iwdgXZ9p0U8hkwjVz4zTn0a6hElQsaOzVuuo6dXpztbbCuVYAF+XyOTCbDlKlTeeThRwmCaJhS6slP8/ovZJ67C0k+PxiS1Nb1AqER+AA07cwIE7mvWLJ63Lx58/ivP9xDr4Zynnz2QT7YvIF/u+NOHvvDU6B6M3HqMRQLIWvXvUO+eSOIIlg+QvugDRUVkscevZNkjaHghOzoyJANbaSoJsym+fop3yBs6ihNXpVkEI+7eJ73QjKR/E5dXd1b69Zt+Bxx7QYH8w8GQyaKZoMcN7DfYPr17kcUZRhywP7ERJERg3vx61uu5/Y+/bjlpvt48/mF+JFHqizO9OlDmDRpNEdMn4aMDMcfezJFD9boBI07Wikqj1giRS6bI215JPwsYZilsnc5c488ljWr32f58lco5D2EZEo2l3szt3HDWwjuA/4LaN6dlL8IEGtv3YXtJgYFnmbUmIlINwUmYueOzUjtgRcRs2NccemF9KrszY9/9K+YyGfZs4sZ0L8OSYgy4BUDqioTbM7m+dNfnmLMUdNwk1UUIw+lHExkERQ96NTsN7iBO3/xC7L5AiBZvvQl3l+7lhefe55nnnlmdEe2cJsW3AQ8KuFe4HEglLuZvd57J6gZOWoEI0eOYtTIAxk18kACL1cPMVS8gj4DhiCsJCve2Ex7WweWlIRREWmFnHH6SXz3sgsIgL88/EeS5eXEE+WYSOMmY1x5w1Wg4K///lt+88Pr2fnyGnoVE6QyYHbk+NPdvwUfxg0ZCXkPSwekEzZHzJzCnMOm8Off3ceqN14RP/nRDxnYv5eF4QQNj2i48fFFD7PkqUU8tPABKssrqCirJF1WQUVZxV4C0JWEMAK06CZDqh58anr0wvMFo0dPBuDOX/4nGAejFfF4AqMi5p32FZIu/OWRPwECnc2hEDgxlxNPO4lFi/9IQ301295Yz+2XXcc3Z5/K5ad+kyu+djHLn36JXnUJLv7WBbiOQgiD5+d4eflSxow9lDtvu4WaZIofXnIxLz/7LA8/cB9nnHyMue+u2xsOOXRCeUSEtCRhEKK1RgiBlPLLbIO6dHQxQYSsB0U6nSaMFNOnnYKiH489shxL1eA65XheQKFYpL5vPT/+yQ8455xzKbQ0owV4OmLe6afx2BNPsv/+B/D04sVc88OLOWLmZGqq0xBCz77lzD1yJo89+lf2H3IAuUIBaUtsWxIFHmUWrHjtNSzbhmJATbqKuXOO4e477hCnzvvqScZmzbPLn7vi2BNP/pEfeZaOIqSUOI7z5XyAEAIMaCHBEEk3hRagVIwDBo+mpqqBxh0rWXD1DVxy6Tew7IhUuoIw9Dj7zLMoT5ZBEEIQ8f76DSz6y/M0trUwZ9Zs3Fg53//eJUjLJpfPY1tWieZqQ9xxKeQKpCrLKBQ7iYo+0w6ayMzxYxjes4HVi/9GNp8nklDVq45eg/sTt6tA6rrmlu03ECECE2DZzo+kUiXA9lYD/MDvYoAlFFEqo70iHR0d+L5PR0cH7e1thPj85p77mD9/PvlCARuBHUFS2piOHHQUoLNIpXSpTwoqLQedKyIJkWhE4JGyFTEpUVGERFMICuBAzutEIUgiCZpauGL+uZwwehJlO3PURYq0p+nYuIXWDR+gMLihz3fOPUeUpTFKcFWk9Vgvlyeb6dh7DXAdl0hrlLR5avFiG8QMiKipqUEpzXtr3sLTW5lx6MEoK8OyZa/T1ryT4YOHo4sRMjB8sHIVzR9sw1aKIPT4+Q8WkOhVSbmyidCYLkkoDUIYIiGJPpGXlabLEg10tLQhDDjSwolbNGUzqLhDMhkjlYhDIYeTitG3Ty/uuONWceb8Syyiwn86gTU2VVbm7TUAkQmxbYd8ZxHge0Dt8APHUVFRgVABLy5/GGjn0u9/nYPGDqKlZQcjho7EzweQC9n+9ipa121Gd+RIllUQSyaormugqZAhu2UHqUF9CJRBhaBEibIZIOpOLpguAETJDVU21OEV8rRv24mfy+PFBdW9qkjUlFM1sDeBgkhoCpHP0ccfw5zZj/DskqXDAh0ehjSP7zUAUgiiMGLpC88PALkAUuao408TWrpoEbJ56/tU1yQZO24IVVVx0mkb3y9gqTSytgavuJLyygoC26VY8FDGYntLK4naciqrKgm6gywJpbddO7YovZNGIg1ooYkkyGScPqMOgKGDIBaHziykU0TFHCbhoIVGOhbSszDGcMpXT+GJxc9g4FDbtvcSAAN96usxWgDql8iK2OFzz6Oi1ziynsTk2ih0ZJk+ewLxeJJ8Lo/rCHQUEUQhysvQd+QQcpl2mpt2UshkcKvKOWDCUCp79QC7xG9VF0OJZMkEjADR7Z6kwRhAKIwBbRuMJZGujcBAdQoNCDtJqXZg0L7GVS4Yi8mTp2AASzJ54H4D9t4HOI7D/ff+Z0oh5iTKapgx60Q8nUAoiyBs+9iPms/6U6EksboaYnVVVO/XQBQGBFGAkQLfkUjxWZYmd1OTMeLjcyQ/raGf5vrdQU7pXF1dRV2PalpbWye88cYbVikltTc+wA+JomhARMSwYcOwLYvIlMhOx87iHshlaZZRFELgo6QAW6EsGyMhMlEXpRBIaWG0+XghZk/bk961xPP3RPhG4jgWUkJoDCYMo73WAM/ziKJoAIDruogSF6C9rZ0gCD6a0u64thASZSuIQkLPIwwjjNAox0IpiZSSCMO+HNlslsYdLQDrhw3f3+w1ANpogAGpWDW1tT2JohCDIRaLke7TB7D525JnKOQLuPFSuGmMQXSpoemioZbtYNlgiEq0GkOEYa9iekBJie/7CCExRqOFROuIeDyOHwRYTgxLKbKFPI6t2Lp1c5e2sU6pL0GEkokkwEDP83ZbNO0/aCBaCF5+9TWktPYUhIMxGAzdRc7IGHSkv5RU44kEUkls28a2LSzbxvN8LKWIwpDOzk50FCGE5PHHHytFsZb1vpJq7wEQUiCEGKBNREXFZ6Op0QceiAEeWfQ4QjnoLmOQ3THEpwzDGIPu0pLdJWP2PJHSfYLQQ7oOL774HJdffjnP/O05mnY0c8UVP6CubgCvvfYaQgoirclk2rnxxp8bwPf98K5IR3u/C2SLBYyRAyMRp7q2AYwDQpYkiaRh4DBCmeSlV97ECPWR94UIrQ1Sqo+t3OguH/blJI/QJNIp/Gwnixcv5le/Xsgvf7UQt2sVZWVQXVNNzE2iIrj2p9fRmfWFhDvGTxy/fncavNuUmBIlVdFCg2Amdvqpqp5juPSynyHsngTEQIQokadHKuC2Gy9j9aqnuPIH53PNFd8m35GhPF6FDkB0gYAUIDSR0Wipu0CUXWZVIju7puP0LpL/SCD5HOl0Gq01N954Mw8/9CjNO1s5YtYMLrroOwwfOYrODo8nn1zKGWecaQIdtQnBfpGhfXcpsS8AQE5FigehrPaU869j/Lg5FLwYkZBo6aNEnrQI+HDjK9z8rxdguT7/cef1zJo+hZiMU1lZg1/MIYRACIER+iMfYLpic4HaPQBi91oSdmWDW1tbKE9XYllxwiDCEOD7PpFR/Pbe3/PdyxcAMhLoU4EH9R5ygp/nA+ZhrCW4tbWTTziLMeOm4BlJoEJC5RMpHyN9Ip1nYP8GDp99JELAt759Fdu2N+HGE+SyWYwIMbJ0LcLH4GHwQJQ+CzyE6f4cfnzs4kM+BiMMAwqFIlVVPZBKks/nsF2XIIhY+/56Tj31dC6/fAEKgUKdBzz4ZdPi14FUXzvzPEZPOByMJIx8EM4u7C9uS9q3N/LK8pcI8hAA8+afxa9+cTeTD5lEGHQgTfgxy9mr7ptdWaYxAikcdAi+pykWi7S1tbLk93/gzwsf4sUX38ALwO9aWLos9WJ7Z9uXrgt4gGjf2URYLCBwcB0HlEvRi9A6Qdyy2bx2Jb+6bQF+1MmRR09m+/bNvPX6ZmYd/TW+etIxXPG9b7H//gMxQYgmouh5CEsiLLCUwkiBFDa2sktmoj9GKNIQhRHGgFIWQih0BKtWrWHFipX85ZGFPPHUq0SADSRjMHTIILZs/pC2XIF8viP6Qr/6OT7gOI3zIMQcWdaLOceezLBhB1HTsx9+5BAGIPwMd990BZ3N71PfkKA928j2HXlQJUGbEHrXxDn/G2dx+IzD6Nu/D+WVlSilUI6NkpKW1taSsnb5iaYdzbS1tbF9x3baWttobW1n8+bNvPfee2zevJnN21rxgbiA0EAsBkOH9OHNt7biWlBeUUNTczPKEr+fNm3qvKeWPLcLkf7Mes0n9uRd92YJqAZI3IOoCLFqDPF6k+o10kyadYY57vQfmCOOOd9IUWviKm3itjSAGTCowiTKMXbSMt2dQCmEsUobqKmwHNNQ08McNHSYOezgg83+ffuavtU1ptKOmzjCxMEkwJQJZdLSMgmBiXX91gZTlXCMAjNm6GCzaOF/ma0fvGyaGt80X5l7hHEFxkGYmLKXuoqa446d8xkn9+m1Wp+fDJWb55960jfu//3vfkbI+YRiVrawY/jLresBifEj0skystkccam5dsGlfOeSi/hg2zYmHTyDWDLBjd9fwKsvLmPNurVs2LQRP9R0NrfR2tyKxiBRuNIlEYtTmaqgT996KsrLqaurp6yiHDfukCpPU1NTRVlZgvb2dq688kpGjhjFoVOmosnz61//mmf+9pwJDcJg7pRRePFxxx8ThFH0hYzD2mMPHyCNZtW7KzjogCFrtOBSjeHt1at7q9CbFRnzM2PoUd+rH6vXNtGrvo5zzz4boQ37NTRQW5Vm66ZmynWes46eSTJ9AkEo2LZ9B7abpDPnYcVcevbuRTHwQEVIWaoDFgs+HR1ZfANb21t5b/Uqtm7dSmdnhi1btpDzAnr0rGfz1u2cd97ZvPnmSvwIz8C3XDt2L2gWLXpij1vp380EdUnOuAkXrTWe5zF68OAP31279g0JNZWpFBWpJACnnPJV6urq6OhoZ8mTT9H0YTMucPm1PyYN9KyuoHdDf9xYmlwhwAibXKFIprOd5rYmsH22ZfLEuvB3VYyOyCeSFr6JsCwLP/CxHItp06dRlk4z8/BZNLe1oWGdY9mnAq/tqu/yi1nnbn1Ad0gvcCVY40cM55Axoxk1eBDjDziAGDxWKSxz7le+ZsoQJq2k2bllnTFRxnS0bjTHzznYJBTm/DPnmrNPmmmmjmgwdS7GBZMEU24p44ApQ5lKYZkEmBoL07ccM7S3NMN6x83U0UNNv8pK44A5eOxY8+B//7e5/eabTEwp41jKAKYsmQgV4qeOZcfjjktFWRrHcXY5vmi9u68Ol7KTZRheiSnRMXrEyIlagIwMr618e5YDi0fU9uPH11/HV86dT1lZisbmbfhBHokmna6nV53L66+/Tr6QI5FKY4Qkm82zYuUatje1cs3VC2htaub8s07i/HO/RmWVoaIyRhhFBJ4EqnjiyeV888LLMVi89PJyMpkMUw87HFsJgsi8DpxTVV7xVrFYRAiBH/gItWvE5/v+51aHP48J/gIY4odmba5YINARr658W9XYzs1lwJlzjke15TFAS2cWrTWO6+J5Ho4FcTdO4+atVKbSBJ05ypRLdbyMY2bN4eSjjqO9qZmalOKic46jb1WGHukP8bMv43cuIyZWU+U2MuPg/ZgxbSL5MGTZsqUsW7YUJSCKzEJg4oRxY9/qrluEUVSKOf6HOkROBL4ONGq42I3HsGIuluDsfOCPGL/fCI6cdAj1yQqq7SQayGQyBEGA53nEEtDY2M7cuXO55+7/QElBsZAlkUhQyHSQaWvDQeEXIp5b8hydnZ1EQYEo7KSmRxmGgDAI2LR+ExvWr8cWkIjHWbduHcaAlPz50IMnRkpZ6EgT6S8ZXe4RAMNtlHLxZw8dtl9L3svz2qtv1Aub62NCcPrJJxMLNbozx34DBmJbgmdfeB47nuBXd93FjnawHNi0w+OqBTez7OXlIKEt04pwJA0D+/Htiy/EKMGPbriHBx56k0yxBjt1AG3ZNHbyAJ5eupWLLv056zc1M2L4UI46+mh27NjeFRDxQnc67h9Z/OdpwF3AucDjbiLOqvfWx9A8LHxqjpg0maG9+yHzAaboM2zYUIqh4bLLv8+ivz7GtdfdQlWFYuyEifRvqKCg4clnlmAscJIS5Wj8MMu/XHs1F150MS1F+Olt9/PLux9hZ1uSts4K/vTIa1x+9U28ubGRAw8cxUN/fohMJsOyZcuMlHxw2PSpW6RU6H9w8XveBg0/6X771tvv1EmLB1TI+HEDBnDBifOo8CSFlg6slE17eztu3GHjpkaO/8o8bNel/8ChxFO1VPbIs2FLO+25TgpRHqEN2gqwZAxLlbPgumuIlyf4yU9u4NZf/JWmVs3YceP40b/8nJ3Nmtkzp3HXXXdTXV3DOeecw862TmFJFuXzBdrb23BdFy/w92GTlGGMK8RjUWh6HtS3L9dd9D3qVIpicwdRUMCKpXl/wwdoGWf4gRN4951VhF6WD7ZkyRUb2fzBRtwYHDF7FtJSeMUs0tJEIiKUEksmOOe8czBCs2DBT/nNvY/x63sew1Jw+Kyp3HPPvaTiZTz00EM88OCfcQRbkOqqYrFILBYn1cVB/pHxuU1SCjZq6D933ASuOv18erpl5DsyBEUPpWG70Rx/3TXI3v25dsGtvPj8ayxcuJCo0AJWAcJG5p/+FX75bz9DkyOf70BZAoGNMCmUjOHEY3iexwvPP88tt9xCR7bAV796ChdeeCFaCzZu2MTUadNMFIZ4XnD40KFDn3FdF9/30ZHmnVWr967HaS+apBRQl0KYEcNGCSEUza1thFGAitls2r6Nex9dRMYUmTVxJn5QziGTT2TsQUdx/+/u5L23nwJVQf/+B7Bty3bK0haeXySWTCCFhTACozVRvoBtW8yePZuxY8aRTJfhui6ZTIaFCx/imqv/hWxnQWi4adSIIc9IaeH7Po7jYFn2vtGA7pSYQF/tIH9s0KIcOGLMFE488hg2Nm7l1vvvplFryupHcOH3ridhN4BOYDsObjxi5btL+O3dPyVsX0OFqzjtjBP47qUXUV1TQzZbxLUrMVrgJCwQGqMFxhjaO7Lcf//9/PGPD7B6zSYsCWHJ1w0fc+CI9zClOoBt20SR5s0VK/8hDfhcALoigkGOss/TUXBOClVZJKLaLmNb0MkRJ85jyhGnIZ06hKlAmjitba2kyx1QHRQyH/DX+29n7TtLUZbGDyCegn4N/amr7Uef3g0Iy7CzeQdbt26lubmZTVt2EncFBc8wZ/YMwlDTFdOfMHTIoIdjbmKXuf6jAFh73h1Lz10dNmv2OiHE959d/NTVWcQJPpwfhd50pVzx4eZGE0+Ui9ZOj8pyQ2dnM/EyASoAqYgnKjn62LncsOIFBtTXUl1TzltvreXNdzbhqk0IFMUo+sjebBtSSYvp06dz7bU/Zv/Bgzn33PO7y27aUor/6fHFPUJK4vk+M2Yd4fu+/4DtOg/87ZlnBhs/uGztqndf9nNt7a6KnfPCswtnvfrqq5ZlWSQSidIW1dlM4/uv4AjFFVdcyWmnnUquWODWW27nhhtvpSIVe6SYzf1GQIsBHQQsKgZh5TVXX8PQoUMIAs3qNWuQErRmazpdQT5f+J9FYHfRoPwoHJQfVz5lV5z6yQMLRAxECkTqEUTKwCePhLGEY8oTKdPZ1my8XLvx8xlz5MwZBjBxyzmkrkc16bI4luKe7gxS7/pac9klF5nXX1tuAKMERSC9L9b79wFQAsFB4n4WhF12jQESxko4XMJJEl4BzCXfvshk29tM8/YPzbsr3jCOwADvHzJ+ItWV5QCVgKmuSpqetVWmK5I3riO702r37yuBfw4An8gOCRJIViJ5+zOa8PG4BdggoawLujmyS6I1VZXmtltuMrnOjDl93qnd8fxVE8aN7QZgeDcAMw+bag6bPtkM6NfbOLboBmD8x10He5bAvgTgTiQGyQOfVI5PXHZc10S3SXC6vlohwfTu1dOkU0njWMr0b+hj0qlkBAS2Eg3jxh5IXY9K0mVxW0kygBk9cqiZPu1Q07+h3ri2ZYA7dm27+N8H4CgEBskOJD32AMB7Xbmn2d2GI8GXYA6fMc1MnXyo6VlbYyxZ0ohEzLn2oANHM2HcWHrVVVNZnsRWzO9qX/nIBCS8IMEt3XP3L/Ywob8XgL/niZGbu87nATv3cM0twHxg8ScaXTaU2mQ08XicioqKbkKzIl/0f+K4LlFXx0qpjdW+35L0Aa4EFmq4SJceu/PYh2OPROijp68FlwAegn/fY+Z09/H1mUJwX2Q+eV/8yDB+4vhxK6MopFgo0tzSRKQ1OuoGw0apj++ys6lllzubT7XU6C+a0Jdlgp8A4PN7k/YMAFJyOHBuqJllK7FSSnXphAnj3/D9gGKxQCwWZ9Om9R9Vj0stuaA/0TbT2tK2TwH4P+34iyN/zwjrAAAAAElFTkSuQmCC)}.xl-site-tag-icon[data-xl-site-tag-icon=site_BT]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC4AAAAuCAYAAABXuSs3AAAACXBIWXMAAAsTAAALEwEAmpwYAAAE7mlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgOS4xLWMwMDIgNzkuYTFjZDEyZiwgMjAyNC8xMS8xMS0xOTowODo0NiAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0RXZ0PSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VFdmVudCMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKFdpbmRvd3MpIiB4bXA6Q3JlYXRlRGF0ZT0iMjAyNS0wNS0yNVQxNDoyMzowNiswMjowMCIgeG1wOk1vZGlmeURhdGU9IjIwMjUtMDUtMjVUMTQ6MjM6NDkrMDI6MDAiIHhtcDpNZXRhZGF0YURhdGU9IjIwMjUtMDUtMjVUMTQ6MjM6NDkrMDI6MDAiIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjcwYWRjMWI3LTc2NTQtN2M0OS05ZTZmLWFmNjk2OTM2Y2RiYyIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDo3MGFkYzFiNy03NjU0LTdjNDktOWU2Zi1hZjY5NjkzNmNkYmMiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDo3MGFkYzFiNy03NjU0LTdjNDktOWU2Zi1hZjY5NjkzNmNkYmMiPiA8eG1wTU06SGlzdG9yeT4gPHJkZjpTZXE+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJjcmVhdGVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOjcwYWRjMWI3LTc2NTQtN2M0OS05ZTZmLWFmNjk2OTM2Y2RiYyIgc3RFdnQ6d2hlbj0iMjAyNS0wNS0yNVQxNDoyMzowNiswMjowMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKFdpbmRvd3MpIi8+IDwvcmRmOlNlcT4gPC94bXBNTTpIaXN0b3J5PiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PmIIA3sAAAGpSURBVGje7ZlBagIxFIbnCl6hV+gVvIJX6BU8QaGbLLoQ2oUgCC1UcCMIRVoQRBBEF0ILhSoIUrpo7aa0u9R/MDIMMzomM0l+6OK5NF/e5P3vf0kgpQwYI/zpzZeL4PxS2I6SuKpdDMcjxOfP77cuuHQc4rR+27x7enlmA99toHzTbr2uvz7YwMM4qTXq47f3FR24gk87+16DIyrtbocSHGcefIzgsvo46FOCQybzBj+m4RgVae7gWZoF/h/dUXcDzsCjG9CBL+SoHG2ONMDPug/3jBkvRA4zn3FImk624VuKaECFqgpsb5rZ8lbHAc1msgT8CZWt3dSB3Jdlb8E3hSjRqGgnIESSsWIxWeEwnaTh/37chjTGVcZmAxKGhdty4lWuJ7OpbttXa0Wl0ro7xOL49KYjnHVwlX3TEc4JOApNt0idguO4mK7nBHw7f3KB686dzsCRZcyOJnqea3HaakDxe0SKlq+SFL30pwGPXwqxgAs0LTrwpDty78GhJEmvEl5PQGnQPoOLQ0OzL+ChzkM5sj7WOnlZxjSjXpQRaQPxQXDat3zG+AMriEnVrkkkswAAAABJRU5ErkJggg==)}");
+                xlinks_api.insert_styles(".xl-site-tag-icon[data-xl-site-tag-icon=lang_jp]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAUVBMVEX////89ffstsPjlaj77/LacYq+CTS8AC2/CjXacov78PP22+HGJUvGJkz23OLac4z99vjst8Tjlqnkl6nkmKrsuMW/CzbbdY3GJ0323ePadI1SYYEeAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkH80BkfYAAAB6SURBVCjPzZHJDoAgDEQRVBCVVXD5/w+VGIMQSrj6rvOaTlqE/kaHCcFdNe6HkQbYxOF8XujLKsD5mAejB4SBJkigH0sFpgpB0wxdCCYXbCHYXNhaK1yjpC9LIpkKO3AHvn75AR5bROM4K8+STw9/VZ4VUM4Yp9DfuAEcEgb8vRe9xgAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMy0wMS0xMlQwMTozMToyMiswMDowMJwMZyQAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjMtMDEtMTBUMDM6NTA6NTkrMDA6MDAFGLMuAAAAAElFTkSuQmCC)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_cn]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAclBMVEXuHCXxQB/xRx7vKSP4oBD4pA/uHyX0cRf0cBfwOCDuIiTuICTuHSXvJCTvKyP6vQvxSh381wfvKCPvLyL6tgz//wDwMiH1fhX4mxD6uwv6wgryUB3vIyT1dxbyURz+7wPvJyP2iRP4oQ/zXRrzWRv///96F0p+AAAAAWJLR0QlwwHJDwAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAEkN/i0OQwAAABvSURBVCjPY2AgATAy4ZRiZgaRLKxsuBSwc4ApTi5uHiyyvHx8/Px8fLxApoCgEBYFwiKiQMAvBmRyiQtjtUFCVFQCr/MlpaQkISxprPIysjw8sjIglpy8GF6TFPiEufHJKyqx4dXPoKzCMAoGMwAAo/cEXRjamKYAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_kr]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABoVBMVEX///+7u7vCwsLBwcG9vb3u7u4cHBySkpJ5eXl2dnYdHR3w8PBeXl5paWkwMDCHh4c3Nzf4+Pj29vaFhYU0NDRmZmaOjo6zs7MiIiJzc3NLS0tRUVF+fn56enpNTU1JSUmMjIxnZ2e2trbv7+8eHh4VFRWGhoYuLi75+fn9+PnpparYXGXPN0LPOEPYXWbqqa7++/tqamqxsbEXFxcbGxvNzc1/f3/Ozs733+HSQ07NLjrXWWL66+zY2NgYGBh8fHzPz8/09PSQkJBOTk739ffMOkdSUlKPj4/19fWkhKLrq6++vr56T3y0MUaWNVa3MUXZX2g0Rox7OGMCRp8AR6ADR55vOmjQPEcJTaNoOmzLLzvLLjtiO2+pP1kzbLMZRJQ3QIQXRJV9VYCOrdWjjaqUlJRPT099fX32+fwtZ7EyaK/69/lTU1PQ0NCAgIAxMTHh6fQya7Pm7fbX19czMzPT09MkJCSgoKD3+fyQr9Y1bbQKTqQ3b7SUstf5+/0nJyeRkZG0tLQhISGsrKxXV1d4eHhlZWX+/v5xcXG5ubm8vLzgoCRaAAAAAWJLR0QAiAUdSAAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDAElAS4VndQAAAFISURBVCjPY2CgEmBkQhdhZkHmsbKxc6DKc7JzcSNxeXj5+AUEEXwhAWERUTEEX1xCUkpaBtkAWTl5BUUlGE9ZhV1VTV2DgUFTS1tHV0/fgIFBw9DImN2EFarA1IyP39icgcHC0goMrG0YGGzthEXsHWBGODo5Ay1wcbWCAmugGbJu7h5IdrIALfC0ggMvBgZBb4yw8IFI+vr5WwVgDaxAsHxQcEhoWDhWBRGRUVbRMSEgEItVQVxIfEIiWD4kCUOSCejI5BA4SAE6Ejl2PFLT0hkYMjJh8lnZDAwcOexCMPncvHx+Y1MGhgKoisIiBoZiO+ESs1KoAm4V9rJyUFBXVFZVV9fU1gEtMDSvb2CDBTVDY1Nzi3Q6spta03JYRJUQfB7efP4SISRHlQiLtKWiJhjJdmQT2jsaVJATDEMnSgIDga4uBioBAMJERI7yM7r7AAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_hk]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYCAMAAACsjQ8GAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABFFBMVEW6AAC6AQHFKSntvLzrtLS+DQ345OT+/f355+e7AgLWZmb+/Pzwycn////DIiLGKyvBGxu/ERHfiYnyzs7HMjLfiorilZXUYGC8BwfadXXxzc3VZ2f45eXln5/TXFz77+/vw8O7AwPTXl7xy8vYbm7ruLjGLCzmpqbtvr767u756urMQ0O8CAjz09P99vb34uLwx8fDICDHNDTLQEDMRETadnb12dnmoaG/ExPAFhboqan99fX02trgjIzEJibz0NDz1NTJNzfcf3/ZcXHuvr7MQUHuv7/EJSX9+Pj67e3SWFj//v6/EhLehob++/vwy8v88/Ppra3HMTHCHx/uwMDilJTWZ2f99/f12tq8BgbSWVnFKirY+jP4AAAAAWJLR0QN9rRh9QAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3Izr/obEAAACmSURBVCjPY2AYhIARvzQTMwteeVY2dg5OfAq4uHl4+XBJ8gsIMgqx8QqLiIqJS2BTIMnLKyUtIyvHwSbPrqCIRYESrzKviqqaugavjKaWNhYFOrp6+gaGRsYmpmbmFlgdYWllbWNrYmfvYIjTE45Ozi6uMmxuuOTdPXg1Pb14Nb19cCjw9fMPCAziFeYNxi5vEcKrF8rKEBYegTMwLSJBZFQ0w7ADACDyErqWmAEaAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_id]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYAQMAAAChnW13AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEXnABH///9GPYQdAAAAAWJLR0QB/wIt3gAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3KkMjGRUAAAAQSURBVAjXY2CgAPwHAjIJAJsjL9Ejwc0pAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIzLTAxLTEyVDAxOjMxOjIyKzAwOjAwnAxnJAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyMy0wMS0xMFQwMzo1MDo1OSswMDowMAUYsy4AAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=lang_th]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAYBAMAAABpfeIHAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEWlGTHq2d/09fhGQ18tKkrb2+L///+mSNUGAAAAAWJLR0QGYWa4fQAAAAlwSFlzAAAABAAAAAQAYp+hIAAAAAd0SU1FB+cBDQA3LkRO3QwAAAAkSURBVBjTY2CgAhBEAwxKaIAIAWM0wOCCBugkEIoGyPELFQAAxhk0Eaz+gbcAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDEtMTJUMDE6MzE6MjIrMDA6MDCcDGckAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTAxLTEwVDAzOjUwOjU5KzAwOjAwBRizLgAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=site_DS]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAYBQTFRF+YqH/+XMlC4zbAMG/sSr2oN9/Hh58E1V1E1So4CX2dvn6ez3Zlqg/8uz/OrX+WVn49Xc2ur9/tvFuJag6+Tp/tO86Pf/ulZW5pWK2cPJnj1C9pyU/bql9t3Z2H13p0VIu2Zm06Sjy2lmpVZb9ePh9t3L/bSjwoeH/FtguXl82ouD/v/+qFxi5sjG3Z6YmU9W5qaZ+m1w/r+p+JKN2WVn+6mc1ztEzZaXwXFusjY9tEVL5by46mVo8f7/9LOg5Kqj6J2R7Hl327O128rP//Pa+qSYx3l049zk/cSyqmFl1ef9+r6x/K2fzDA62tPc3ef21ZeM9byq1a6w3uLt6bmo9q2cyq22yqOox46QpU5R88y+//v26omF9dbFilZz/LWo/NbO/fDs9MOw/M/B/8+3hh8l/9bC/8S9fhMZ/t/I8q+h+aCW2OX538/V/8ev8KeX1d7wsk9P/vTw8NbR0bzC9LWpvF9e+bylyZ6gznFs+YB/opfB1FxepWBvr2xu8vT5Ltt4cwAAA3xJREFUeNo0kflb2loQhseTEKgQwr6EyCprXJpQEFAUUUERceG2Ba1aldAAEo22aUnR+6/fg+39fjjPec68M9/MHDD/levtsP2528Y2l8tVt9XHNuDL5kajYf/ess+3XIXXsmf+2PMphqI/SaUSSnYR/OuxNxr3xx1/uz6/jJJlj3Pe419FNZpWfhZOCl0wm+32xuM4vNOut5Nsp+xZ8pd3ulKhp5CkIZOsAY7b79uRcN02vxPKJMsu6XO5tYS0niKSPi1YgWMMtOvdZN3WTmub6fKYSPP1GKvSJCmKXq0C9zPgF6rijtmHzBL/SYrxY7YUohWSEytRAzQw0FJVv82VVt3hAz69ilzPSGWHMw/OUIDHR7s9Ha0t2/yo0oum+dgrWrthQ7KsPtCi6KuA0+lMo6m2bitoihLt8Og1xt6GSpJEyD6FHA5xhVZoEtU6EfZBJCdni3I4KQe9vsz6GiF9VEQMmJ0sOVn5uhRVOCV6VkWdDiqZ+s/rfIRQFfIUHv3IR2o/VkocSSqTavrl3Yu3+GHhaeGJPyAe6FOox1TlISp6fXhwOvj5wGK52i5uW58jNxcLskbfQlL6SPoMmQmemuz50jGLJUaZtq0HxPLTRVLaPAWppoiG4IQTOY7r/YOuLJYSxQhfu8Svp5tFZAhCiOPEYHTYo2mSc59LFovFRAnMtw6RvFh4Dgcz4Es0E4bNwWGmVqEdA/XlStoQmFR2WTpb7JytaQYIBHLNL5mYRBDIPRi8R0SRYpgUAysL4SrPb5UgABCSCSx0Mhg47koyzICUkdpWlxerwS8QD5QIQkbhyv7cHAYO1aIgCKl8/ujINC1N4QecQ57w+hS3uz/AuvvWlE0UY5oBxnxehw9AUdNpMyEqPQd2cLgPr4sb+gZjzB8ZjUeMTm2DIFA67F0rbsesgpuuFHEOZcwbU0YjowOAQG2Y9L0EOQPmBv1+ODTSKQq3iSXo2SwIU5Oe/R/ABArlsjpeVYphBAovATamFGCAxsAc1q3sFfeyQOFRcHzUHIKgQzbQFGnHG7C7QrB0IjfKYvNZnngLOD5qcsrfArsxgnjfE6+vc6NR7lqk3ZcAgVyC2+/1B28F1uVX1B3c0fv74r4ys43DKHF415vlW63W3S1Z+v2OOLE63Hhxb6Zx2Do9v4zPtGi1rsks/u5VOWK9/PMWj5//J8AARTPMVw1SAkMAAAAASUVORK5CYII=)}.xl-site-tag-icon[data-xl-site-tag-icon=site_MD]{background-image:url(data:image/png;base64,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)}.xl-site-tag-icon[data-xl-site-tag-icon=site_CK]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAsTAAALEwEAmpwYAAAGMWlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgOS4xLWMwMDIgNzkuYTFjZDEyZiwgMjAyNC8xMS8xMS0xOTowODo0NiAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0RXZ0PSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VFdmVudCMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKFdpbmRvd3MpIiB4bXA6Q3JlYXRlRGF0ZT0iMjAyNS0wNS0yNVQxNDoxMzoyMiswMjowMCIgeG1wOk1vZGlmeURhdGU9IjIwMjUtMDUtMjVUMTQ6MTQ6MjMrMDI6MDAiIHhtcDpNZXRhZGF0YURhdGU9IjIwMjUtMDUtMjVUMTQ6MTQ6MjMrMDI6MDAiIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjllZWZlOTMwLWM0YjctMjM0OC1iOGFkLTVhOTY1Yzk0ZDBhNSIgeG1wTU06RG9jdW1lbnRJRD0iYWRvYmU6ZG9jaWQ6cGhvdG9zaG9wOjM1YjkwOWVmLWVhNjYtNjU0Ni04ZGZjLWM0YjViMDJiNTc1NCIgeG1wTU06T3JpZ2luYWxEb2N1bWVudElEPSJ4bXAuZGlkOmU4ZmY4M2NmLWY3YjAtNmU0MS04YTZlLTAwOWMxZGZhMmUzMCI+IDx4bXBNTTpIaXN0b3J5PiA8cmRmOlNlcT4gPHJkZjpsaSBzdEV2dDphY3Rpb249ImNyZWF0ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6ZThmZjgzY2YtZjdiMC02ZTQxLThhNmUtMDA5YzFkZmEyZTMwIiBzdEV2dDp3aGVuPSIyMDI1LTA1LTI1VDE0OjEzOjIyKzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgMjYuNCAoV2luZG93cykiLz4gPHJkZjpsaSBzdEV2dDphY3Rpb249ImNvbnZlcnRlZCIgc3RFdnQ6cGFyYW1ldGVycz0iZnJvbSBhcHBsaWNhdGlvbi92bmQuYWRvYmUucGhvdG9zaG9wIHRvIGltYWdlL3BuZyIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0ic2F2ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6OWVlZmU5MzAtYzRiNy0yMzQ4LWI4YWQtNWE5NjVjOTRkMGE1IiBzdEV2dDp3aGVuPSIyMDI1LTA1LTI1VDE0OjE0OjIzKzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgMjYuNCAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+jGxdIwAAHHlJREFUeNrdm3mYVNWd9z/nnLvU1tUr3dBAswjKjiCbyqoI4oZLNBEVY9xijDFqTIwLE2N0EuOaMWOiEzVOZhJjiEaDikpcEdwFF0BWAWloeqvu2u52zvtHdasoaDDD5H3fU899btVTt26d8/0t5/tbrjDG8OkhhGCfDwEomHrkZOyYjV/Mk7DiPL3o2QZp+JWJ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)}.xl-site-tag-icon[data-xl-site-tag-icon=site_BT]{background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAC4AAAAuCAYAAABXuSs3AAAACXBIWXMAAAsTAAALEwEAmpwYAAAE7mlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgOS4xLWMwMDIgNzkuYTFjZDEyZiwgMjAyNC8xMS8xMS0xOTowODo0NiAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0RXZ0PSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VFdmVudCMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKFdpbmRvd3MpIiB4bXA6Q3JlYXRlRGF0ZT0iMjAyNS0wNS0yNVQxNDoyMzowNiswMjowMCIgeG1wOk1vZGlmeURhdGU9IjIwMjUtMDUtMjVUMTQ6MjM6NDkrMDI6MDAiIHhtcDpNZXRhZGF0YURhdGU9IjIwMjUtMDUtMjVUMTQ6MjM6NDkrMDI6MDAiIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjcwYWRjMWI3LTc2NTQtN2M0OS05ZTZmLWFmNjk2OTM2Y2RiYyIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDo3MGFkYzFiNy03NjU0LTdjNDktOWU2Zi1hZjY5NjkzNmNkYmMiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDo3MGFkYzFiNy03NjU0LTdjNDktOWU2Zi1hZjY5NjkzNmNkYmMiPiA8eG1wTU06SGlzdG9yeT4gPHJkZjpTZXE+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJjcmVhdGVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOjcwYWRjMWI3LTc2NTQtN2M0OS05ZTZmLWFmNjk2OTM2Y2RiYyIgc3RFdnQ6d2hlbj0iMjAyNS0wNS0yNVQxNDoyMzowNiswMjowMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKFdpbmRvd3MpIi8+IDwvcmRmOlNlcT4gPC94bXBNTTpIaXN0b3J5PiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PmIIA3sAAAGpSURBVGje7ZlBagIxFIbnCl6hV+gVvIJX6BU8QaGbLLoQ2oUgCC1UcCMIRVoQRBBEF0ILhSoIUrpo7aa0u9R/MDIMMzomM0l+6OK5NF/e5P3vf0kgpQwYI/zpzZeL4PxS2I6SuKpdDMcjxOfP77cuuHQc4rR+27x7enlmA99toHzTbr2uvz7YwMM4qTXq47f3FR24gk87+16DIyrtbocSHGcefIzgsvo46FOCQybzBj+m4RgVae7gWZoF/h/dUXcDzsCjG9CBL+SoHG2ONMDPug/3jBkvRA4zn3FImk624VuKaECFqgpsb5rZ8lbHAc1msgT8CZWt3dSB3Jdlb8E3hSjRqGgnIESSsWIxWeEwnaTh/37chjTGVcZmAxKGhdty4lWuJ7OpbttXa0Wl0ro7xOL49KYjnHVwlX3TEc4JOApNt0idguO4mK7nBHw7f3KB686dzsCRZcyOJnqea3HaakDxe0SKlq+SFL30pwGPXwqxgAs0LTrwpDty78GhJEmvEl5PQGnQPoOLQ0OzL+ChzkM5sj7WOnlZxjSjXpQRaQPxQXDat3zG+AMriEnVrkkkswAAAABJRU5ErkJggg==)}.xl-site-tag-icon[data-xl-site-tag-icon=site_WD]{background-image:url(data:image/png;base64,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)}");
 
                 xlinks_api.register({
                     settings: {
@@ -3611,10 +3604,10 @@
                                 {type: "textbox"}
                             ],
                         ],
-                        comick: [
-                            ["show_icon", true, "Show an icon instead of a [CK] tag", ""],
+                        weebdex: [
+                            ["show_icon", true, "Show an icon instead of an [WD] tag", ""],
                             ["show_orig_lang", true, "Show original language", "Include the original language of a series as a tag [ja], [ko], [zh], etc."],
-                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags in place of the [CK] tag or icon."],
+                            ["use_flags", true, "Use country flags", "Show country flags instead of language tags in place of the [WD] tag or icon."],
                             ["show_author", true, "Show author name", ""],
                             ["show_artist", true, "Show artist name", "People that are both author and artist will only appear once."],
                             ["show_volume", true, "Show volume number", ""],
@@ -3622,14 +3615,15 @@
                             ["show_pages", true, "Show page count", ""],
                             ["show_group", false, "Show group name", ""],
                             ["custom_title", false, "Non-default series title language", "With the default title as fallback"],
-                            ["title_search_order", "en, orig", "Series title search order",
-                                "orig = original language; e.g. ja, en, zh, zh-hk, ko, id, th, es, vi, de, ru, uk, fr, fa, pt, pt-br, tr, ...",
+                            ["title_search_order", "en, orig-ro, orig", "Series title search order",
+                                "orig = original language; -ro = romanized; e.g. ja, ja-ro, en, zh, zh-hk, ko, id, th, es, vi, de, ru, uk, fr, fa, pt, pt-br, tr, ...",
                                 {type: "textbox"}
                             ],
-                            ["tag_filter", "", "Genre & tag filter", "List of genres or tags separated by a comma; e.g. \"ninja, dumb female lead\"",
+                            // ["show_ch_lang", false, "Show chapter language", "Include the language a chapter was translated into"],
+                            ["tag_filter", "", "Tag filter", "List of English tag names (content, format, genre or theme) separated by a comma; e.g. \"loli, military, office workers\"",
                                 {type: "textbox"}
                             ],
-                            ["tag_filter_style", "invert", "How to modify the icon on a genre filter match", "Only works if you show an icon instead of a [CK] tag",
+                            ["tag_filter_style", "invert", "How to modify the icon on a tag filter match", "Only works if you show an icon or flag instead of an [WD] tag",
                                 {
                                     type: "select",
                                     options: [
@@ -3650,7 +3644,7 @@
                                     ]
                                 }
                             ],
-                            ["tag_filter_style_custom", "", "Custom CSS for matched genre filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
+                            ["tag_filter_style_custom", "", "Custom CSS for matched tag filters", "If you picked \"Custom CSS\" above. I hope you know what you're doing.",
                                 {type: "textbox"}
                             ],
                         ],
@@ -3711,29 +3705,29 @@
                             },
                         },
                         {
-                            group: "comick",
-                            namespace: "comick",
+                            group: "weebdex",
+                            namespace: "weebdex",
                             type: "chapter",
                             count: 1,
                             concurrent: 1,
                             delay_okay: 200,
                             delay_error: 5000,
                             functions: {
-                                setup_xhr: ck_chapter_setup_xhr,
-                                parse_response: ck_chapter_parse_response
+                                setup_xhr: wd_chapter_setup_xhr,
+                                parse_response: wd_chapter_parse_response
                             },
                         },
                         {
-                            group: "comick",
-                            namespace: "comick",
+                            group: "weebdex",
+                            namespace: "weebdex",
                             type: "series",
                             count: 1,
                             concurrent: 1,
                             delay_okay: 200,
                             delay_error: 5000,
                             functions: {
-                                setup_xhr: ck_series_setup_xhr,
-                                parse_response: ck_series_parse_response
+                                setup_xhr: wd_series_setup_xhr,
+                                parse_response: wd_series_parse_response
                             },
                         },
                     ],
@@ -3762,8 +3756,9 @@
                             prefix: "https://",
                         },
                         {
-                            // https://comick.io/comic/a-ninja-and-an-assassin-living-together/2JbmNIIV-chapter-36-en
-                            regex: /(https?:\/*)?(?:www\.)?comick\.io\/comic\/([^\/]+)\/\S+/i,
+                            // https://weebdex.org/chapter/w7fkuirmd9
+                            // https://weebdex.org/chapter/w7fkuirmd9/1
+                            regex: /(https?:\/*)?(?:www\.)?weebdex\.org\/chapter\/([^\/]+)/i,
                             prefix_group: 1,
                             prefix: "https://",
                         },
@@ -3788,9 +3783,9 @@
                             // details: create_details
                         },
                         {
-                            url_info: ck_ch_url_get_info,
-                            to_data: ck_ch_url_info_to_data,
-                            actions: ck_create_actions,
+                            url_info: wd_ch_url_get_info,
+                            to_data: wd_ch_url_info_to_data,
+                            actions: wd_create_actions,
                             // details: create_details
                         },
                     ]

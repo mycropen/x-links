@@ -38,3 +38,7 @@
 .xl-site-tag-icon[data-xl-site-tag-icon=site_BT] {
     background-image: url('#{data:../../images/extensions/mangadex/BT.png}#');
 }
+
+.xl-site-tag-icon[data-xl-site-tag-icon=site_WD] {
+    background-image: url('#{data:../../images/extensions/mangadex/WD.png}#');
+}
