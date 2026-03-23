@@ -2,7 +2,7 @@
 // @name        X-links Extension - Mangadex
 // @namespace   mycropen
 // @author      mycropen
-// @version     1.7.0
+// @version     1.7.1
 // @description Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to
 // @include     http://boards.4chan.org/*
 // @include     https://boards.4chan.org/*
@@ -3468,7 +3468,7 @@
             name: "Mangadex & Dynasty links",
             author: "mycropen",
             description: "Linkify and format chapter links for Mangadex, Dynasty-Scans, comick.io and bato.to",
-            version: [1,7,0],
+            version: [1,7,1],
             registrations: 1,
             main: main_fn
         }, function (err) {
@@ -3758,7 +3758,7 @@
                         {
                             // https://weebdex.org/chapter/w7fkuirmd9
                             // https://weebdex.org/chapter/w7fkuirmd9/1
-                            regex: /(https?:\/*)?(?:www\.)?weebdex\.org\/chapter\/([^\/]+)\/?.*/i,
+                            regex: /(https?:\/*)?(?:www\.)?weebdex\.org\/chapter\/\S+/i,
                             prefix_group: 1,
                             prefix: "https://",
                         },

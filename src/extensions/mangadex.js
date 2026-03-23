@@ -2562,7 +2562,7 @@
                         {
                             // https://weebdex.org/chapter/w7fkuirmd9
                             // https://weebdex.org/chapter/w7fkuirmd9/1
-                            regex: /(https?:\/*)?(?:www\.)?weebdex\.org\/chapter\/([^\/]+)\/?.*/i,
+                            regex: /(https?:\/*)?(?:www\.)?weebdex\.org\/chapter\/\S+/i,
                             prefix_group: 1,
                             prefix: "https://",
                         },

@@ -1,5 +1,9 @@
 master
 
+1.7.1
+- mycropen
+  + Fix for weebdex.org links being broken in a post with multiple links and without 4chan X
+
 1.7.0
 - mycropen
   + removed support for comick.io chapter links
