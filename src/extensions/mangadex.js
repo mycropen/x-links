@@ -2539,6 +2539,8 @@
                         // Note for the future: Make sure these regex patterns capture the whole url. Without 4chan-x or
                         // similar installed, only the part of the url that's captured by these patterns will be
                         // replaced.
+                        // This also means that without 4chan-x capture groups like ".+" will continue across newlines.
+                        // Use "\S+" instead to capture the "rest" of a url. And test them with and without 4chan-x.
                         {
                             // mangadex.org can only be preceeded by "https://" or "www." or both or neither
                             // the link ends either with the ID, a "/", a "#" or "/5" (for page 5)
